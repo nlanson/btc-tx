@@ -1,0 +1,12 @@
+[package]
+name = "btc_tx"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+secp256k1 = {version="0.20.3", features = ["rand"]}
+rand = {version = "0.6", features = ["std"]}
+bitcoin_hashes = { version = "0.10", features = ["std"] }
+btc_keyaddress = { git = "https://github.com/nlanson/btc-keyaddress" }
