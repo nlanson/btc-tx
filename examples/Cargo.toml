@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 btc_tx = { path = '../' }
+btc_keyaddress = { git = "https://github.com/nlanson/btc-keyaddress" }

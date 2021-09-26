@@ -11,15 +11,7 @@
 
     Todo:
         - Sig module
-                - Sign messages with private key
-                - Verify signatures with public key
-                - Serialize signatures with DER
                 - Verify txns with sighashes
-                - This can just be methods that wrap around the rust-secp256k1 library making use of the following structs and methods:
-                    > secp256k1::Message::from_slice()
-                    > secp256k1::Secp256k1::sign_low_r()
-                    > secp256k1::Secp256k1::verify()
-                    > secp256k1::SerializedSignature::from_signature()
 
         - Serialization module
                 - Serialize integers into byte arrays (big or little endian)
@@ -45,15 +37,17 @@
 */
 
 //Modules
-pub mod sig;
+pub mod signature;
 pub mod tx;
 pub mod util;
+pub mod serialize;
 
 //Dependencies
-use secp256k1::{
+pub use secp256k1::{
     PublicKey,
     Secp256k1,
     SecretKey,
     Signature,
-    Message
+    Message,
+    SerializedSignature
 };
