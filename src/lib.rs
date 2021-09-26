@@ -14,6 +14,7 @@
                 - Verify txns with sighashes
 
         - Serialization module
+                - Serialize inputs, outputs and transactions                      ~~[high priority]~~
                 - Serialize integers into byte arrays (big or little endian)
                 - Serialize inputs, outputs, signatures and entire transactions.
         
