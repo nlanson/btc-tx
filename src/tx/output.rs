@@ -5,7 +5,7 @@
 
 #[derive(Clone)]
 pub struct Output {
-    pub value: Vec<u8>,               //8 bytes representing value in satoshi  (little endian)
-    pub script_pub_key_size: Vec<u8>, //VarInt
-    pub script_pub_key: Vec<u8>       //Locking script
+    pub value: u64,                   //Amount locked in output in Satoshis   (little endian)
+    pub script_pub_key_size: u64,     //To be converted into a VarInt for serialization
+    pub script_pub_key: Vec<u8>       //Locking script opcodes
 }
