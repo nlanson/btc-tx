@@ -24,8 +24,8 @@ fn create_and_verify_data() {
     }
 
     //Serialize and deserialize the signature
-    let ss: SerializedSignature = serialize::serialize_sig(&sig);
-    let dess: Signature = serialize::deserialize_sig(&ss).unwrap();
+    let ss: SerializedSignature = util::serialize::serialize_sig(&sig);
+    let dess: Signature = util::serialize::deserialize_sig(&ss).unwrap();
     
     println!("{:02x?}", ss.to_vec());
 

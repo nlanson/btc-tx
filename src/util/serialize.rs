@@ -8,7 +8,12 @@ use crate::{
 
 #[derive(Debug)]
 pub enum SerializationError {
-    CantDeserialize()
+    DeserializationErr(),
+    VarIntErr(usize)
+}
+
+pub trait Serialize {
+    fn serialize(&self) -> Result<Vec<u8>, SerializationError>;
 }
 
 /**
@@ -26,6 +31,6 @@ pub fn serialize_sig(sig: &Signature) -> SerializedSignature {
 pub fn deserialize_sig(sig: &SerializedSignature) -> Result<Signature, SerializationError> {
     match SerializedSignature::to_signature(sig) {
         Ok(x) => Ok(x),
-        Err(_) => Err(SerializationError::CantDeserialize())
+        Err(_) => Err(SerializationError::DeserializationErr())
     }
 }

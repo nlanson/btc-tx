@@ -1,0 +1,3 @@
+/*
+    Module that makes writing script easier.
+*/

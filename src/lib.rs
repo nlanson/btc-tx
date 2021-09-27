@@ -10,6 +10,16 @@
 
 
     Todo:
+        - Transaction Builder (See bitcoinjs-lib TransactionBuilder)
+                - Struct to aid the creation of a transaction.
+                - Ability to sign transactions independently with a .sign(index) method.
+                   This will take in the index of the input being signed and the key to sign the input with
+                   as well as the sighash flag to indicate so the builder can detect later when new inputs/ouputs
+                   are being added.
+                - Ability to add inputs from txid and out index
+                - Ability to add outputs with recipient address and amount
+                - Ability detect the sigHash in a signed input and deny new inputs or outputs based on already signed inputs.
+    
         - Sig module
                 - Verify txns with sighashes
 
@@ -17,6 +27,10 @@
                 - Serialize inputs, outputs and transactions                      ~~[high priority]~~
                 - Serialize integers into byte arrays (big or little endian)
                 - Serialize inputs, outputs, signatures and entire transactions.
+
+        - Script module to easily construct relevant locking and unlocking scripts   ~~[high priority]~~
+
+        - Create new outputs (P2PKH only for now) in the output module using scripts from the script module  ~~[high priority]~~
         
         - Hash module
                 - Create wrapper functions around crypto-rs library hash methods
@@ -41,7 +55,6 @@
 pub mod signature;
 pub mod tx;
 pub mod util;
-pub mod serialize;
 
 //Dependencies
 pub use secp256k1::{
