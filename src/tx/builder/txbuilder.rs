@@ -6,11 +6,13 @@
         - General cleanup
         - Deny inputs or outputs based on stored sighashes
 */
-use super::{
-    Input, Output, Tx,
-};
 use btc_keyaddress::key::Key;
 use crate::{
+    tx::{
+        Input,
+        Output,
+        Tx
+    },
     PrivKey,
     PubKey,
     Signature,
@@ -52,7 +54,16 @@ pub enum BuilderErr {
     FailedToCreateMessageStruct(),
     UnsignedInput(usize),
     OutputIndexMissing(usize),
-    InvalidInputIndex(usize)
+    InvalidInputIndex(usize),
+    UnknownScriptType(),
+    TxCommitted()
+}
+
+pub enum ScriptType {
+    P2PKH,
+    P2SH,
+    P2WPKH,
+    P2WSH
 }
 
 impl TxBuilder {
@@ -66,20 +77,52 @@ impl TxBuilder {
         }
     }
 
-    pub fn add_input(&mut self, txid: &str, vout: u32) {
+    /**
+        Add a new input from txid and output index
+    */
+    pub fn add_input(&mut self, txid: &str, vout: u32) -> Result<(), BuilderErr> {
+        //Check if an input has been signed that does not allow for new inputs
+        for i in 0..self.sighashes.len() {
+            match self.sighashes[i] {
+                Some(SigHash::ALL) |
+                Some(SigHash::NONE) |
+                Some(SigHash::SINGLE) => return Err(BuilderErr::TxCommitted()),
+                _ => { /* New input can be added */}
+            }
+        }
+        
         let txid_bytes: [u8; 32] = bytes::try_into(bytes::decode_02x(txid));
         let new_in: Input = Input::unsigned_input(txid_bytes, vout, 0xFFFFFFFF);
         self.inputs.push(new_in);
         self.script_sigs.push(None);
-        self.sighashes.push(None)
+        self.sighashes.push(None);
+
+        Ok(())
     }
 
-    pub fn add_output(&mut self, address: &str, value: u64) {
+    /**
+        Add a new output with recepeint address and value
+    */
+    pub fn add_output(&mut self, address: &str, value: u64) -> Result<(), BuilderErr> {
+        //Check if an input has been signed that does not allow for new outputs
+        for i in 0..self.sighashes.len() {
+            match self.sighashes[i] {
+                Some(SigHash::ALL) |
+                Some(SigHash::ALL_ANYONECANPAY) => return Err(BuilderErr::TxCommitted()),
+                _ => { /* New input can be added */}
+            }
+        }
+        
         let new_out: Output = Output::new(address, value);
         self.outputs.push(new_out);
+
+        Ok(())
     }
 
-    pub fn sign_input(&mut self, index: usize, key: PrivKey, sighash: SigHash) -> Result<(), BuilderErr> {
+    /**
+        Sign an input in the current transaction at the given index, key and sighash
+    */  
+    pub fn sign_input(&mut self, index: usize, key: &PrivKey, sighash: SigHash) -> Result<(), BuilderErr> {
         //Return an error if the given input index is larger than the total amount of inputs
         if self.inputs.len() < index {
             return Err(BuilderErr::InvalidInputIndex(index))
@@ -92,16 +135,35 @@ impl TxBuilder {
         tx_copy.inputs[index].scriptSig = Self::get_input_script_pub_key(&self, index)?;
         tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
 
+        //Get the unlocking script type of the input
+        let input_script_type: ScriptType = match Self::get_input_script_pub_key(&self, index)?[0] {
+            0x76 => ScriptType::P2PKH,
+            0xA9 => ScriptType::P2SH,
+            0x00 => {
+                match Self::get_input_script_pub_key(&self, index)?[1] {
+                    0x14 => ScriptType::P2WPKH,
+                    0x20 => ScriptType::P2WSH,
+                    _ => return Err(BuilderErr::UnknownScriptType())
+                } 
+            },
+            _ => return Err(BuilderErr::UnknownScriptType())
+        };
+
         //Based on the provided SigHash, modify the transaction data
         Self::modify_tx_copy(&mut tx_copy, &sighash, index)?;
 
         //Sign the modified tx_copy
-        let signature: Signature = Self::create_signature(&tx_copy, &sighash, &key)?;
+        let signature: Signature = match input_script_type {
+            ScriptType::P2PKH => Self::create_signature(&tx_copy, &sighash, &key, input_script_type)?,
+            ScriptType::P2SH => unimplemented!(),
+            ScriptType::P2WPKH => unimplemented!(),
+            ScriptType::P2WSH => unimplemented!()
+        };
         
         //Construct the scriptSig for the input
         let script_sig: Vec<u8> = Self::construct_script_sig(&self, index, &signature, &sighash, &key)?;
 
-        //Store the scriptSig and sighash to use later
+        //Store the scriptSig and sighash to use later  
         self.script_sigs[index] = Some(script_sig);
         self.sighashes[index] = Some(sighash);
 
@@ -180,7 +242,7 @@ impl TxBuilder {
     /**
         Sign the modified tx using the provided secret key and sighash
     */  
-    fn create_signature(tx_copy: &Tx, sighash: &SigHash, key: &PrivKey) -> Result<Signature, BuilderErr> {
+    fn create_signature(tx_copy: &Tx, sighash: &SigHash, key: &PrivKey, input_type: ScriptType) -> Result<Signature, BuilderErr> {
         //Serialize the tx_copy ready to sign
         let mut serialized_tx_copy: Vec<u8> = match tx_copy.serialize() {
             Ok(x) => x,
@@ -221,8 +283,13 @@ impl TxBuilder {
             Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
         };
 
-        //Sign the message and return the signature
-        Ok(signature::sign(&msg, &key.raw()))
+        //Sign the input based on script type
+        match input_type {
+            ScriptType::P2PKH => Ok(signature::sign(&msg, &key.raw())),
+            ScriptType::P2SH => unimplemented!(),
+            ScriptType::P2WPKH => unimplemented!(),
+            ScriptType::P2WSH => unimplemented!()
+        }
     }
 
     /**

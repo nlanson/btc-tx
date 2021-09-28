@@ -19,7 +19,7 @@ fn create_testnet_tx() {
 
 
     let key: PrivKey = PrivKey::from_slice(&[25, 185, 89, 6, 72, 28, 43, 234, 167, 160, 163, 78, 240, 86, 146, 133, 49, 98, 255, 253, 45, 121, 146, 10, 233, 252, 142, 232, 193, 73, 255, 150]).unwrap();
-    txb.sign_input(0, key, tx::SigHash::ALL).unwrap();
+    txb.sign_input(0, &key, tx::SigHash::ALL).unwrap();
     let tx: tx::Tx = txb.build().unwrap();
     println!("{}", encode_02x(&tx.serialize().unwrap()));
 }

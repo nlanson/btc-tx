@@ -14,9 +14,12 @@
                 - Implement the creation of outputs that are not P2PKH
                 - Implement the use of inputs that are not P2PKH
                 - Implement SegWit transactions
+                - Possibly split up builder based on input/output type
     
         - Sig module
                 - Verify txns with sighashes
+        
+        - Unit tests
 */
 
 //Modules
