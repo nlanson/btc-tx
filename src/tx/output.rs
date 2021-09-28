@@ -12,7 +12,7 @@ use crate::{
     },
     util::bytes,
     util::varint::VarInt as VarInt,
-    util::script
+    util::Script
 };
 
 #[derive(Debug, Clone)]
@@ -45,13 +45,15 @@ impl Output {
         //Create the scriptPubKey based on the address prefix
         let script_pub_key = match address.chars().nth(0) {
             //P2PKH Address
-            Some('1') => {
-                //Construct the locking script of the p2pkh transaction here
-                //  - OP_DUP
-                //  - OP_HASH160
-                //  - <The hased public key obtained from base58 decoding the address>
-                //  - OP_EQUALVERIFY
-                //  - OP_CHECKSIG
+            Some('1') | Some('m') | Some('n') => {
+                let mut unlock_script: Vec<u8> = vec![];
+                unlock_script.push(Script::OP_DUP as u8);
+                unlock_script.push(Script::OP_HASH160 as u8);
+                unlock_script.push(0x14); //Length of the PubKey Hash to follow
+                //unlock_script.push(<Decoded Pubkey Hash Bytes>)
+                unlock_script.push(Script::OP_EQUALVERIFY as u8);
+                unlock_script.push(Script::OP_CHECKSIG as u8);
+                unlock_script
             },
             //P2SH Address
             Some('3') => {
@@ -67,7 +69,10 @@ impl Output {
         };
 
 
-        //placeholder
-        Self { } 
+        Self {
+            value,
+            script_pub_key_size: script_pub_key.len() as u64,
+            script_pub_key
+        } 
     }
 }

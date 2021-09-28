@@ -55,6 +55,7 @@
 pub mod signature;
 pub mod tx;
 pub mod util;
+pub mod api;
 
 //Dependencies
 pub use secp256k1::{

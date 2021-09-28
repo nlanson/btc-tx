@@ -5,7 +5,10 @@ pub mod serialize;
 pub mod varint;
 pub mod script;
 
+#[derive(Debug)]
 pub enum Network {
     Main,
     Test
 }
+
+pub use script::Script as Script;

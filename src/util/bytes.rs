@@ -2,6 +2,7 @@
     Util module that contains operations performed on
     byte arrays
 */
+use std::convert::TryInto;
 
 /**
     Method to reverse the byte order of a byte vec
@@ -27,4 +28,12 @@ pub fn encode_02x(bytes: &[u8]) -> String {
     bytes.iter().map(|x| {
         format!("{:02x}", x)
     }).collect::<String>()
+}
+
+/**
+    Converts a vector into an array
+*/
+pub fn try_into<T, const N: usize>(v: Vec<T>) -> [T; N] {
+    v.try_into()
+        .unwrap_or_else(|v: Vec<T>| panic!("Expected {}, found {}", N, v.len()))
 }

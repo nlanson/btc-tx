@@ -3,7 +3,14 @@ use btc_keyaddress::key::PrivKey as PrivKey;
 use btc_keyaddress::key::PubKey as PubKey;
 
 fn main() {
-    create_and_verify_data();
+    //create_and_verify_data();
+    print_txdata();
+}
+
+fn print_txdata() {
+    let mut txb = tx::TxBuilder::new(util::Network::Test);
+    txb.add_input("0063e99edfd9dca0fd453da26a7736ea3c0f0c8f139d78619e8222517a43f0bd", 2);
+    txb.sign_input(0, PrivKey::new_rand().raw(), tx::SigHash::ALL).unwrap();
 }
 
 fn create_and_verify_data() {

@@ -10,3 +10,5 @@ secp256k1 = {version="0.20.3", features = ["rand"]}
 rand = {version = "0.6", features = ["std"]}
 bitcoin_hashes = { version = "0.10", features = ["std"] }
 btc_keyaddress = { git = "https://github.com/nlanson/btc-keyaddress" }
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1", features = ["full"] }

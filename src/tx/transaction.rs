@@ -29,8 +29,8 @@ pub struct Tx {
 impl SerializeTrait for Tx {
     fn serialize(&self) -> Result<Vec<u8>, SerializationError> {
         let mut tx_bytes = vec![];
-        let version_bytes = self.version.to_le_bytes().to_vec();
-        let input_count = match VarInt::from_usize(self.inputs.len()) {
+        let mut version_bytes = self.version.to_le_bytes().to_vec();
+        let mut input_count = match VarInt::from_usize(self.inputs.len()) {
             Ok(x) => x,
             Err(x) => return Err(SerializationError::VarIntErr(self.inputs.len()))
         };
@@ -39,7 +39,7 @@ impl SerializeTrait for Tx {
             let mut bytes = self.inputs[i].serialize()?;
             input_bytes.append(&mut bytes);
         }
-        let output_count = match VarInt::from_usize(self.outputs.len()) {
+        let mut output_count = match VarInt::from_usize(self.outputs.len()) {
             Ok(x) => x,
             Err(x) => return Err(SerializationError::VarIntErr(self.inputs.len()))
         };
@@ -48,7 +48,7 @@ impl SerializeTrait for Tx {
             let mut bytes = self.outputs[i].serialize()?;
             output_bytes.append(&mut bytes);
         }
-        let locktime_bytes = self.locktime.to_le_bytes().to_vec();
+        let mut locktime_bytes = self.locktime.to_le_bytes().to_vec();
 
         tx_bytes.append(&mut version_bytes);
         tx_bytes.append(&mut input_count);
@@ -65,27 +65,18 @@ impl Tx {
     /**
         Constructs a basic P2PKH transaction that is fully signed.
     */
-    pub fn construct_p2pkh_tx(
+    pub fn construct(
         inputs: Vec<Input>,   //The inputs here are unsigned inputs.
         outputs: Vec<Output>,
         locktime: u32 
     ) -> Self {
-        let mut tx: Tx = Self {
+        Self {
             version: 01,
             input_count: inputs.len() as u64,
             inputs,
             output_count: outputs.len() as u64,
             outputs,
             locktime
-        };
-
-        let txCopy: Tx = tx.clone();
-        let mut signed_inputs: Vec<Input> = vec![];
-        for i in 0..tx.inputs.len() {
-            signed_inputs.push(Input::sign_input(&txCopy, i as u64));
         }
-        tx.inputs = signed_inputs;
-
-        tx
     }
 }

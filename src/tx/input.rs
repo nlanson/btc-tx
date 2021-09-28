@@ -22,11 +22,11 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct Input {
-    txid: [u8; 32],         //Pointer to the tx containing UTXO to be spent    (little endian)
-    vout: u32,              //The index number of the UTXO in the referred tx  (little endian)
-    scriptSig_size: u64,    //To be converted into a VarInt for serialization
-    scriptSig: Vec<u8>,     //Unlocking script opcodes   
-    sequence: u32,          //4byte (32bit) integer                            (little endian)
+    pub txid: [u8; 32],         //Pointer to the tx containing UTXO to be spent    (little endian)
+    pub vout: u32,              //The index number of the UTXO in the referred tx  (little endian)
+    pub scriptSig_size: u64,    //To be converted into a VarInt for serialization
+    pub scriptSig: Vec<u8>,     //Unlocking script opcodes   
+    pub sequence: u32,          //4byte (32bit) integer                            (little endian)
 }
 
 impl SerializeTrait for Input {
@@ -62,7 +62,7 @@ impl Input {
         Self {
             txid,
             vout,
-            scriptSig_size: 0x00,  //Unsure if this should be 0x00 or 0x01 for inputs that aren't being signed.
+            scriptSig_size: 0x01,  //Unsure if this should be 0x00 or 0x01 for inputs that aren't being signed.
             scriptSig: vec![0x00],
             sequence
         }
