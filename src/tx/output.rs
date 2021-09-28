@@ -3,7 +3,7 @@
     a transaction
 
     Todo:
-        - Construct locking scripts
+        - Construct locking scripts for non-P2PKH outputs
 */
 use crate::{
     util::serialize::{
@@ -65,12 +65,13 @@ impl Output {
 
             //Input types apart from P2PKH inputs are not yet implemented
             //P2SH Address
-            Some('3') => {
+            Some('3') | Some('2') => {
                 //Pay to Script Hash Addresses are used for MultiSig and non native SegWit transactions
                 todo!();
             },
+
             //Bech32 (SegWit)
-            Some('b') => {
+            Some('b') | Some('t') => {
                 //SegWit Transactions require a new field
                 todo!();
             },
