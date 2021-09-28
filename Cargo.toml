@@ -12,3 +12,6 @@ bitcoin_hashes = { version = "0.10", features = ["std"] }
 btc_keyaddress = { git = "https://github.com/nlanson/btc-keyaddress" }
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+bs58 = "0.4.0"
+sha2 = "0.9.8"

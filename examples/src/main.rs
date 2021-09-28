@@ -1,16 +1,27 @@
 use btc_tx::*;
+use btc_tx::{
+    util::serialize::Serialize
+};
+use btc_keyaddress::key::Key;
+use btc_keyaddress::prelude::encode_02x;
 use btc_keyaddress::key::PrivKey as PrivKey;
 use btc_keyaddress::key::PubKey as PubKey;
 
 fn main() {
     //create_and_verify_data();
-    print_txdata();
+    create_testnet_tx();
 }
 
-fn print_txdata() {
+fn create_testnet_tx() {
     let mut txb = tx::TxBuilder::new(util::Network::Test);
-    txb.add_input("0063e99edfd9dca0fd453da26a7736ea3c0f0c8f139d78619e8222517a43f0bd", 2);
-    txb.sign_input(0, PrivKey::new_rand().raw(), tx::SigHash::ALL).unwrap();
+    txb.add_input("a8064a6143c6027dddafb356236a475dab3f56fa3dad1dc0c873e54e6527f167", 1);
+    txb.add_output("msSJzRfQb2T3hvws3vRhqtK2Ao39cabEa2", 80000);
+
+
+    let key: PrivKey = PrivKey::from_slice(&[25, 185, 89, 6, 72, 28, 43, 234, 167, 160, 163, 78, 240, 86, 146, 133, 49, 98, 255, 253, 45, 121, 146, 10, 233, 252, 142, 232, 193, 73, 255, 150]).unwrap();
+    txb.sign_input(0, key, tx::SigHash::ALL).unwrap();
+    let tx: tx::Tx = txb.build().unwrap();
+    println!("{}", encode_02x(&tx.serialize().unwrap()));
 }
 
 fn create_and_verify_data() {

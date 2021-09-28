@@ -12,7 +12,8 @@ use crate::{
     },
     util::bytes,
     util::varint::VarInt as VarInt,
-    util::Script
+    util::Script,
+    bs58
 };
 
 #[derive(Debug, Clone)]
@@ -50,11 +51,19 @@ impl Output {
                 unlock_script.push(Script::OP_DUP as u8);
                 unlock_script.push(Script::OP_HASH160 as u8);
                 unlock_script.push(0x14); //Length of the PubKey Hash to follow
-                //unlock_script.push(<Decoded Pubkey Hash Bytes>)
+                let mut address_bytes: Vec<u8> = match bs58::decode(address).into_vec() {
+                    Ok(x) => {
+                        x[1..x.len()-4].to_vec()
+                    },
+                    Err(x) => panic!("cannot decode recepient address")
+                };
+                unlock_script.append(&mut &mut address_bytes);
                 unlock_script.push(Script::OP_EQUALVERIFY as u8);
                 unlock_script.push(Script::OP_CHECKSIG as u8);
                 unlock_script
             },
+
+            //Input types apart from P2PKH inputs are not yet implemented
             //P2SH Address
             Some('3') => {
                 //Pay to Script Hash Addresses are used for MultiSig and non native SegWit transactions
