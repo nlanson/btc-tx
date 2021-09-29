@@ -63,15 +63,27 @@ impl Output {
                 unlock_script
             },
 
-            //Input types apart from P2PKH inputs are not yet implemented
+            
             //P2SH Address
             Some('3') | Some('2') => {
-                //Pay to Script Hash Addresses are used for MultiSig and non native SegWit transactions
-                todo!();
+                let mut unlocking_script: Vec<u8> = vec![];
+                unlocking_script.push(Script::OP_HASH160 as u8);
+                let mut script_hash_bytes: Vec<u8> = match bs58::decode(address).into_vec() {
+                    Ok(x) => {
+                        x[1..x.len()-4].to_vec()
+                    },
+                    Err(x) => panic!("cannot decode redeeming script")
+                };
+                unlocking_script.append(&mut script_hash_bytes);
+                unlocking_script.push(Script::OP_EQUAL as u8);
+                unlocking_script
             },
 
+            //SegWit is not yet implemented
             //Bech32 (SegWit)
             Some('b') | Some('t') => {
+                //Construct the scriptPubKey for the SegWit output
+                
                 //SegWit Transactions require a new field
                 todo!();
             },
