@@ -18,12 +18,15 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct Tx {
-    pub version: u32,          //4byte (32bit) integer                           (little endian)
-    pub input_count: u64,      //To be converted into a VarInt for serialization
-    pub inputs: Vec<Input>,    //List of UTXOs to consume
-    pub output_count: u64,     //To be converted into a VarInt for serialization
-    pub outputs: Vec<Output>,  //List of UTXOs to create
-    pub locktime: u32          //4byte (32bit) integer                           (little endian)
+    pub version: u32,             //4byte (32bit) integer                           (little endian)
+    //pub marker: Option<u8>,       //Only present if tx is SegWit (0x00)
+    //pub flag: Option<u8>,         //Only present if tx is SegWit (0x01)
+    pub input_count: u64,         //To be converted into a VarInt for serialization
+    pub inputs: Vec<Input>,       //List of UTXOs to consume
+    pub output_count: u64,        //To be converted into a VarInt for serialization
+    pub outputs: Vec<Output>,     //List of UTXOs to create
+    //pub witness: Option<Vec<u8>>,
+    pub locktime: u32             //4byte (32bit) integer                           (little endian)
 }
 
 impl SerializeTrait for Tx {
