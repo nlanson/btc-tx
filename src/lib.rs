@@ -11,10 +11,14 @@
 
     Todo:
         - Transaction Builder (See bitcoinjs-lib TransactionBuilder)
-                - Implement the creation of outputs that are not P2PKH
-                - Implement the use of inputs that are not P2PKH
-                - Implement SegWit transactions
                 - Possibly split up builder based on input/output type
+                - Implementing P2SH inputs:
+                      > When signing a P2SH input, the redeemScript needs to be provided
+                - Implementing SegWit
+                      > Detect whether there is a SegWit input. If there is, serialize the 
+                        transaction with the witness marker, flag and witness array.
+                      > Place scriptSigs of SegWit inputs in the appropriate position in the Witness Array
+                      > If an input is non-SegWit, keep Witness array value at position as 0x00
     
         - Sig module
                 - Verify txns with sighashes

@@ -2,9 +2,13 @@
     Module that creates and signs transactions
 
     Todo:
-        - Implement other payment script types for input and output
-        - General cleanup
-        - Deny inputs or outputs based on stored sighashes
+        - Implement SegWit
+        - Determine how to create the scriptSig for an input based on the scriptPubKey.
+             > If a P2SH scriptPubKey is detected, run a method that takes in necessary info (if any)
+             > If a P2PKH scriptPubKey is detected, sign and create the scriptSig with a single signing key
+             > If a SegWit scriptPubKey is detected, construct the relevant PKH or SH scriptSig
+        - Construct Tx's with SegWit Inputs
+             > If any of the inputs are SegWit, build the Tx with the additional data and Witness vector.
 */
 use btc_keyaddress::key::Key;
 use crate::{
@@ -350,6 +354,10 @@ impl TxBuilder {
             }
         }
 
+        //Match here if there are any SegWit inputs. If there is, construct a Tx with SegWit Data
+        //If not, construct a legacy transaction
+        
+        
         Ok(Tx {
             version,
             input_count: input_count as u64,
