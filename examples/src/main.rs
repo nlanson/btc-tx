@@ -3,13 +3,15 @@ use btc_tx::{
     util::serialize::Serialize
 };
 use btc_keyaddress::key::Key;
-use btc_keyaddress::prelude::encode_02x;
+use btc_keyaddress::prelude::*;
 use btc_keyaddress::key::PrivKey as PrivKey;
 use btc_keyaddress::key::PubKey as PubKey;
 
 fn main() {
     //create_and_verify_data();
-    create_testnet_tx();
+    //create_testnet_tx();
+    //create_segwit_output_tx();
+    create_segwit_tx();
 }
 
 fn create_testnet_tx() {
@@ -24,32 +26,26 @@ fn create_testnet_tx() {
     println!("{}", encode_02x(&tx.serialize().unwrap()));
 }
 
-fn create_and_verify_data() {
-    //Create a new random private key and a message filled with zeroes.
-    let sk = PrivKey::new_rand();
-    let my_msg = [255; 32];
+fn create_segwit_output_tx() {
+    let mut txb = tx::TxBuilder::new(util::Network::Test);
+    txb.add_input("d37c3d75e7a70261bf191dfc296272cbb20e0466167d4f6f8fde6c2458f05004", 0);
+    txb.add_output("tb1qxauw2dslmtgdyzw73gtv9mzv5erp3xf7mt83vq", 70000);
 
-    //Convert the message into the message struct
-    let msg = signature::new_msg(&my_msg).unwrap();
-    
-    //Sign the message with the private key
-    let sig = signature::sign(&msg, &sk.raw()); 
-    
-    //Verify the signature
-    match signature::verify(&sig, &msg, &PubKey::from_priv_key(&sk).raw()) {
-        Ok(x) => println!("Message verified!"),
-        Err(x) => println!("{:?}", x)
-    }
+    let key: PrivKey = PrivKey::from_slice(&[25, 185, 89, 6, 72, 28, 43, 234, 167, 160, 163, 78, 240, 86, 146, 133, 49, 98, 255, 253, 45, 121, 146, 10, 233, 252, 142, 232, 193, 73, 255, 150]).unwrap();
+    txb.sign_input(0, &key, tx::SigHash::ALL).unwrap();
+    let tx: tx::Tx = txb.build().unwrap();
+    println!("{}", encode_02x(&tx.serialize().unwrap()));
+}
 
-    //Serialize and deserialize the signature
-    let ss: SerializedSignature = util::serialize::serialize_sig(&sig);
-    let dess: Signature = util::serialize::deserialize_sig(&ss).unwrap();
+fn create_segwit_tx() {
+    let mut txb = tx::TxBuilder::new(util::Network::Test);
+    txb.add_input("471157b07c3f6f5243c0b98a02614636cc6cde24371bcb69dc0bbd4efe52a742", 0);
+    txb.add_output("tb1qxauw2dslmtgdyzw73gtv9mzv5erp3xf7mt83vq", 65000);
     
-    println!("{:02x?}", ss.to_vec());
-
-    //Verify the deserialized signature
-    match signature::verify(&dess, &msg, &PubKey::from_priv_key(&sk).raw()) {
-        Ok(x) => println!("Message verified!"),
-        Err(x) => println!("{:?}", x)
-    }
+    let key: PrivKey = PrivKey::from_slice(&decode_02x("3a8c0c731cba400917f66bc3435a405387a9a5b20cdbfdedb19e37d0c6cad8b9")).unwrap();
+    let address = btc_keyaddress::address::Address::testnet_p2wpkh(&PubKey::from_priv_key(&key)).unwrap();
+    println!("{}", address);
+    txb.sign_input(0, &key, tx::SigHash::ALL);
+    let tx: tx::Tx = txb.build().unwrap();
+    println!("{}", encode_02x(&tx.serialize().unwrap()));
 }

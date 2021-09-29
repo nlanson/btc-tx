@@ -2,13 +2,9 @@
     Module that creates and signs transactions
 
     Todo:
-        - Implement SegWit
-        - Determine how to create the scriptSig for an input based on the scriptPubKey.
-             > If a P2SH scriptPubKey is detected, run a method that takes in necessary info (if any)
-             > If a P2PKH scriptPubKey is detected, sign and create the scriptSig with a single signing key
-             > If a SegWit scriptPubKey is detected, construct the relevant PKH or SH scriptSig
-        - Construct Tx's with SegWit Inputs
-             > If any of the inputs are SegWit, build the Tx with the additional data and Witness vector.
+        - Signing P2SH, P2WSH and P2WPKH inputs
+            > P2SH and P2WSH need a *special* method that will take in as many keys and a redeemScript
+            > P2WPKH will need to be signed using BIP-143 specification
 */
 use btc_keyaddress::key::Key;
 use crate::{
@@ -28,7 +24,8 @@ use crate::{
         serialize::Serialize,
         serialize::serialize_sig
     },
-    hash
+    hash,
+    tx::Witness
 };
 
 #[allow(non_camel_case_types)]
@@ -133,35 +130,27 @@ impl TxBuilder {
         }
         
         //Create a copy of the transaction
-        let mut tx_copy: Tx = Tx::construct(self.inputs.clone(), self.outputs.clone(), 0);
-        
-        //Add the script pub key of the input currently being signed as the scriptSig
-        tx_copy.inputs[index].scriptSig = Self::get_input_script_pub_key(&self, index)?;
-        tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
+        let mut tx_copy: Tx = Tx::construct(self.inputs.clone(), self.outputs.clone(), 0, false);
 
         //Get the unlocking script type of the input
-        let input_script_type: ScriptType = match Self::get_input_script_pub_key(&self, index)?[0] {
-            0x76 => ScriptType::P2PKH,
-            0xA9 => ScriptType::P2SH,
-            0x00 => {
-                match Self::get_input_script_pub_key(&self, index)?[1] {
-                    0x14 => ScriptType::P2WPKH,
-                    0x20 => ScriptType::P2WSH,
-                    _ => return Err(BuilderErr::UnknownScriptType())
-                } 
-            },
-            _ => return Err(BuilderErr::UnknownScriptType())
-        };
+        let script_pub_key: Vec<u8> = Self::get_input_script_pub_key(&self, index)?;
+        let input_script_type: ScriptType = Self::determine_script_type(self, &script_pub_key, index)?;
+        
+        //Add the script pub key of the input currently being signed as the scriptSig
+        tx_copy.inputs[index].scriptSig = script_pub_key;
+        tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
+        
 
         //Based on the provided SigHash, modify the transaction data
         Self::modify_tx_copy(&mut tx_copy, &sighash, index)?;
 
         //Sign the modified tx_copy
+        //Currently, only P2PKH signing is implemented
         let signature: Signature = match input_script_type {
-            ScriptType::P2PKH => Self::create_signature(&tx_copy, &sighash, &key, input_script_type)?,
-            ScriptType::P2SH => unimplemented!(),
-            ScriptType::P2WPKH => unimplemented!(),
-            ScriptType::P2WSH => unimplemented!()
+            ScriptType::P2PKH => Self::sign_p2pkh_input(&tx_copy, &sighash, &key)?,
+            ScriptType::P2SH => unimplemented!(),             //Implement a custom P2SH signing function here
+            ScriptType::P2WPKH => Self::sign_p2wpkh_input()?, //New BIP-143 Signing method
+            ScriptType::P2WSH => unimplemented!()             //P2SH signing but with BIP-143
         };
         
         //Construct the scriptSig for the input
@@ -187,6 +176,33 @@ impl TxBuilder {
         };
 
         Ok(input_spkhex)
+    }
+
+    /**
+        Determine what script type the inputted script is.
+        Returns error if cannot tell.
+    */
+    pub fn determine_script_type(&mut self, script: &Vec<u8>, index: usize) -> Result<ScriptType, BuilderErr> {
+        let input_script_type: ScriptType = match script[0] {
+            0x76 => ScriptType::P2PKH,
+            0xA9 => ScriptType::P2SH,
+            0x00 => {
+                match Self::get_input_script_pub_key(&self, index)?[1] {
+                    0x14 => {
+                        self.inputs[index].segwit = true;
+                        ScriptType::P2WPKH
+                    },
+                    0x20 => { 
+                        self.inputs[index].segwit = true;
+                        ScriptType::P2WSH
+                    } ,
+                    _ => return Err(BuilderErr::UnknownScriptType())
+                } 
+            },
+            _ => return Err(BuilderErr::UnknownScriptType())
+        };
+
+        Ok(input_script_type)
     }
 
     /**
@@ -246,7 +262,7 @@ impl TxBuilder {
     /**
         Sign the modified tx using the provided secret key and sighash
     */  
-    fn create_signature(tx_copy: &Tx, sighash: &SigHash, key: &PrivKey, input_type: ScriptType) -> Result<Signature, BuilderErr> {
+    fn sign_p2pkh_input(tx_copy: &Tx, sighash: &SigHash, key: &PrivKey) -> Result<Signature, BuilderErr> {
         //Serialize the tx_copy ready to sign
         let mut serialized_tx_copy: Vec<u8> = match tx_copy.serialize() {
             Ok(x) => x,
@@ -287,13 +303,17 @@ impl TxBuilder {
             Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
         };
 
-        //Sign the input based on script type
-        match input_type {
-            ScriptType::P2PKH => Ok(signature::sign(&msg, &key.raw())),
-            ScriptType::P2SH => unimplemented!(),
-            ScriptType::P2WPKH => unimplemented!(),
-            ScriptType::P2WSH => unimplemented!()
-        }
+        //Sign the input
+        Ok(signature::sign(&msg, &key.raw()))
+    }
+
+    /**
+        Sign SegWit inputs  (BIP143)
+    */
+    fn sign_p2wpkh_input() -> Result<Signature, BuilderErr> {
+        //Use the Hash of the BIP143 Serialization format to sign the input
+        
+        todo!();
     }
 
     /**
@@ -304,7 +324,7 @@ impl TxBuilder {
         let script_sig: Vec<u8> = match Self::get_input_script_pub_key(&self, index)?[0] {
             //P2PKH ScriptSigs
             //OP_DUP
-            0x76 => {
+            0x76 | 0x00 => {
                 let mut v: Vec<u8> = vec![];
                 let ss = serialize_sig(&signature);
                 let pk: PubKey = PubKey::from_priv_key(&key);
@@ -354,17 +374,55 @@ impl TxBuilder {
             }
         }
 
-        //Match here if there are any SegWit inputs. If there is, construct a Tx with SegWit Data
-        //If not, construct a legacy transaction
+        //If any of the inputs in the Tx are marked as SegWit, set the SegWit data
+        let mut segwit: bool = false;
+        let mut flag: Option<u8> = None;
+        let mut marker: Option<u8> = None;
+        let mut witness: Option<Vec<Witness>> = None;
+        if self.inputs.iter().any(|x| x.segwit == true) {
+            segwit = true;
+            //If the Tx is SegWit,values here are set
+            flag = Some(0x00);
+            marker = Some(0x01);
+            witness = Some(vec![Witness::empty(); self.inputs.len()]);
+            //For each input, if the input is SegWit, remove it's scriptSig and store it in the Witness array
+            for i in 0..self.inputs.len() {
+                if self.inputs[i].segwit {
+                    inputs[i].scriptSig_size = 0x00;
+                    inputs[i].scriptSig = vec![];
+                    
+                    let mut wd: Vec<Witness> = match witness {
+                        Some(x) => x,
+                        None => panic!("WTF")
+                    };
+                    wd[i] = Witness::new(self.script_sigs[i].clone().unwrap(), 2);
+                    
+                    witness = Some(wd);
+                } else {
+                    
+                    let mut wd: Vec<Witness> = match witness {
+                        Some(x) => x,
+                        None => panic!("WTF")
+                    };
+                    wd[i] = Witness::empty();
+                    witness = Some(wd);
+                }
+            }
+        }
         
         
+        //Return the Transaction
         Ok(Tx {
             version,
+            flag,
+            marker,
             input_count: input_count as u64,
             inputs,
             output_count: output_count as u64,
             outputs: self.outputs.clone(),
-            locktime
+            witness,
+            locktime,
+            segwit
         })
     }
 }

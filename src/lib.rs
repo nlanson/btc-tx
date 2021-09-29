@@ -15,10 +15,7 @@
                 - Implementing P2SH inputs:
                       > When signing a P2SH input, the redeemScript needs to be provided
                 - Implementing SegWit
-                      > Detect whether there is a SegWit input. If there is, serialize the 
-                        transaction with the witness marker, flag and witness array.
-                      > Place scriptSigs of SegWit inputs in the appropriate position in the Witness Array
-                      > If an input is non-SegWit, keep Witness array value at position as 0x00
+                      > Signing SegWit Inputs needs to follow BIP-143 specification
     
         - Sig module
                 - Verify txns with sighashes
@@ -44,4 +41,8 @@ pub use secp256k1::{
     Signature,
     Message,
     SerializedSignature
+};
+use bitcoin_bech32::{
+    WitnessProgram, u5,
+    constants::Network
 };

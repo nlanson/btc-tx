@@ -13,7 +13,8 @@ use crate::{
     util::bytes,
     util::varint::VarInt as VarInt,
     util::Script,
-    bs58
+    bs58,
+    util::bech32
 };
 
 #[derive(Debug, Clone)]
@@ -72,20 +73,21 @@ impl Output {
                     Ok(x) => {
                         x[1..x.len()-4].to_vec()
                     },
-                    Err(x) => panic!("cannot decode redeeming script")
+                    Err(_) => panic!("cannot decode redeeming script")
                 };
                 unlocking_script.append(&mut script_hash_bytes);
                 unlocking_script.push(Script::OP_EQUAL as u8);
                 unlocking_script
             },
 
-            //SegWit is not yet implemented
-            //Bech32 (SegWit)
+            //SegWit
             Some('b') | Some('t') => {
-                //Construct the scriptPubKey for the SegWit output
+                let mut unlocking_script: Vec<u8> = vec![];
+                let mut spk: Vec<u8> = bech32::decode(address);
+                unlocking_script.append(&mut spk);
                 
-                //SegWit Transactions require a new field
-                todo!();
+                unlocking_script
+
             },
             _ => panic!("Invalid address detected")
         };

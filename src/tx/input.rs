@@ -27,6 +27,7 @@ pub struct Input {
     pub scriptSig_size: u64,    //To be converted into a VarInt for serialization
     pub scriptSig: Vec<u8>,     //Unlocking script opcodes   
     pub sequence: u32,          //4byte (32bit) integer                            (little endian)
+    pub segwit: bool
 }
 
 impl SerializeTrait for Input {
@@ -42,6 +43,7 @@ impl SerializeTrait for Input {
         };
         let mut sg = self.scriptSig.clone();
         let mut seq_bytes = self.sequence.to_le_bytes().to_vec();
+
 
         bytes.append(&mut txid_bytes);
         bytes.append(&mut vout_bytes);
@@ -64,7 +66,8 @@ impl Input {
             vout,
             scriptSig_size: 0x01,  //Unsure if this should be 0x00 or 0x01 for inputs that aren't being signed.
             scriptSig: vec![0x00],
-            sequence
+            sequence,
+            segwit: false
         }
     }
 }
