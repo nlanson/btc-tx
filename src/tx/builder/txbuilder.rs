@@ -56,7 +56,8 @@ pub enum BuilderErr {
     OutputIndexMissing(usize),
     InvalidInputIndex(usize),
     UnknownScriptType(),
-    TxCommitted()
+    TxCommitted(),
+    CannotGetInputValue()
 }
 
 impl TxBuilder {
@@ -216,7 +217,8 @@ impl TxBuilder {
     }
 
     /**
-        Modifies the tx to be signed based on the sighash
+        Modifies the tx to be signed based on the sighash. 
+        Uses the non Segwit serialization
     */
     fn modify_tx_copy(tx_copy: &mut Tx, sighash: &SigHash, index: usize) -> Result<(), BuilderErr> {
         match sighash {
@@ -267,6 +269,111 @@ impl TxBuilder {
         }
 
         Ok(())
+    }
+
+    /**
+        Modifies the transaction based on the Sighash to be signed.
+        See BIP-143 for specification.
+    */
+    fn segwit_tx_modification(
+        &self,
+        tx_copy: &Tx,
+        sighash: &SigHash,
+        index: usize,
+        script_code: &Script
+    ) -> Result<Vec<u8>, BuilderErr> {
+        let n_version = tx_copy.version.to_le_bytes();
+        
+        //hashPrevouts is the SHA256D of all input outpoints if ANYONECANPAY is not set
+        //If ANYONECANPAY is set, hashPrevOuts is [0; 32]
+        let hash_prevouts: [u8; 32] = match sighash {
+            SigHash::ALL | SigHash::NONE | SigHash::SINGLE
+            => {
+                let mut outpoints = vec![];
+                for i in 0..tx_copy.inputs.len() {
+                    outpoints.append(&mut tx_copy.inputs[i].txid.to_vec().clone());
+                    outpoints.append(&mut tx_copy.inputs[i].vout.to_le_bytes().to_vec().clone());
+                }
+                hash::sha256d(outpoints)
+            },
+            
+            _ => [0; 32]
+        };
+
+        //hashSequence is the SHA256D of of the sequence of all inputs if ANYONECANPAY, NONE or SINGLE are not set.
+        //else it is [0; 32]
+        let hash_sequence: [u8; 32] = match sighash {
+            SigHash::ALL => {
+                let mut sequences = vec![];
+                for i in 0..tx_copy.inputs.len() {
+                    sequences.append(&mut tx_copy.inputs[i].sequence.to_le_bytes().to_vec().clone());
+                }
+                hash::sha256d(sequences)
+            },
+            
+            _ => [0; 32]
+        };
+
+        //hashOutputs is the SHA256D of all outputs if SigHash is not single, [0; 32] is SigHash is none
+        //and the output at the same index as the input being signed if the SigHash is single.
+        let hash_outputs: [u8; 32] = match sighash {
+            SigHash::SINGLE => {
+                if index >= tx_copy.outputs.len() { return Err(BuilderErr::OutputIndexMissing(index)) }
+                let mut output = vec![];
+                output.append(&mut tx_copy.outputs[index].value.to_be_bytes().to_vec().clone());
+                output.append(&mut tx_copy.outputs[index].script_pub_key.code.clone());
+                hash::sha256d(output)
+            },
+            SigHash::NONE => [0; 32],
+            _ => {
+                let mut outputs = vec![];
+                for i in 0..tx_copy.outputs.len() {
+                    outputs.append(&mut tx_copy.outputs[i].value.to_be_bytes().to_vec().clone());
+                    outputs.append(&mut tx_copy.outputs[i].script_pub_key.code.clone());
+                }
+                hash::sha256d(outputs)
+            },
+        };
+
+        let input_value: u64 = match api::JsonRPC::new(&self.network).get_input_value(&bytes::encode_02x(&tx_copy.inputs[index].txid), tx_copy.inputs[index].vout){
+            Ok(x) => x,
+            Err(_) => return Err(BuilderErr::CannotGetInputValue())
+        };
+
+        let mut script_code = script_code.code.clone();
+        script_code.remove(0);
+        script_code.remove(0);
+        script_code.splice(0..0, vec![0x19, 0x76, 0xa9, 0x14]);
+        script_code.append(&mut vec![0x88, 0xac]);
+
+        let mut outpoint: Vec<u8> = vec![];
+        outpoint.append(&mut tx_copy.inputs[index].txid.to_vec());
+        outpoint.append(&mut tx_copy.inputs[index].vout.to_le_bytes().to_vec());
+
+
+        let mut bip143_prehash_serialization: Vec<u8> = vec![];
+        bip143_prehash_serialization.append(&mut n_version.to_vec());                                        //version
+        bip143_prehash_serialization.append(&mut hash_prevouts.to_vec());                                    //hashPrevout
+        bip143_prehash_serialization.append(&mut hash_sequence.to_vec());                                    //hashSequence
+        bip143_prehash_serialization.append(&mut outpoint);
+        bip143_prehash_serialization.append(&mut script_code);                                               //scriptCode of the input
+        bip143_prehash_serialization.append(&mut input_value.to_le_bytes().to_vec());                        //Input value
+        bip143_prehash_serialization.append(&mut tx_copy.inputs[index].sequence.to_le_bytes().to_vec());     //Input sequence
+        bip143_prehash_serialization.append(&mut hash_outputs.to_vec());                                     //hashOutputs
+        bip143_prehash_serialization.append(&mut tx_copy.locktime.to_le_bytes().to_vec());                   //Locktime of the transaction
+        let sh: u32 = match sighash {
+            SigHash::ALL => 0x01,
+            SigHash::NONE => 0x02,
+            SigHash::SINGLE => 0x03,
+            SigHash::ALL_ANYONECANPAY => 0x81,
+            SigHash::NONE_ANYONECANPAY => 0x82,
+            SigHash::SINGLE_ANYONECANPAY => 0x83
+        };
+        bip143_prehash_serialization.append(&mut sh.to_le_bytes().to_vec());                                            //Sighash
+    
+        
+
+        Ok(bip143_prehash_serialization)
     }
 
     /**
@@ -368,11 +475,25 @@ impl TxBuilder {
         script_pub_key: &Script,
         key: &PrivKey
     ) -> Result<(), BuilderErr> {
-        Self::p2pkh_pipe(self, tx_copy, index, sighash, script_pub_key, key)?;
-        Ok(())
+        let bip143_serialized_tx: Vec<u8> = self.segwit_tx_modification(tx_copy, sighash, index, script_pub_key)?;
+        let hash: [u8; 32] = hash::sha256d(bip143_serialized_tx);
+
+        let msg = match signature::new_msg(&hash) {
+            Ok(x) => x,
+            Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
+        };
+
+        let signature = signature::sign(&msg, &key.raw());
+
+        //Construct the scriptSig for the input
+        let script_sig: Script = Script::pkh_unlocking(&signature, &key, sighash);
+
+        //Store the scriptSig and sighash to use later  
+        self.script_sigs[index] = Some(script_sig);
+        self.sighashes[index] = Some(sighash.clone());
+
         
-        //todo!();
-        //Follow BIP143
+        Ok(())
     }
 
     /**

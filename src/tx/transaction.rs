@@ -77,9 +77,10 @@ impl SerializeTrait for Tx {
             for i in 0..witness_vec.len() {
                 witness_bytes.append(&mut witness_vec[i].serialize()?)
             }
-
+            
             //Append each Witness to the tx bytes
             tx_bytes.append(&mut witness_bytes);
+            
         }
         tx_bytes.append(&mut locktime_bytes);
 

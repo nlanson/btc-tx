@@ -105,4 +105,18 @@ impl JsonRPC {
         Ok(txd.vout[vout as usize].scriptPubKey.hex.clone())
     
     }
+
+    pub fn get_input_value(&self, txid: &str, vout: u32) -> Result<u64, APIErr> {
+        let txd = Self::get_tx(self, txid)?;
+    
+        if vout as usize > txd.vout.len() {
+            return Err(APIErr::MissingVout())
+        }
+    
+        Ok(Self::sats(txd.vout[vout as usize].value.clone()))
+    }
+
+    fn sats(btc: f64) -> u64 {
+        (btc * 100000000.) as u64
+    }
 }

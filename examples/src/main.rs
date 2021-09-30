@@ -44,7 +44,7 @@ fn create_segwit_tx() {
     
     let key: PrivKey = PrivKey::from_slice(&decode_02x("3a8c0c731cba400917f66bc3435a405387a9a5b20cdbfdedb19e37d0c6cad8b9")).unwrap();
     let address = btc_keyaddress::address::Address::testnet_p2wpkh(&PubKey::from_priv_key(&key)).unwrap();
-    println!("{}", address);
+
     txb.sign_input(0, &key, tx::SigHash::ALL);
     let tx: tx::Tx = txb.build().unwrap();
     println!("{}", encode_02x(&tx.serialize().unwrap()));
