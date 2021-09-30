@@ -6,23 +6,22 @@
             > P2SH and P2WSH need a *special* method that will take in as many keys and a redeemScript
             > P2WPKH will need to be signed using BIP-143 specification
 */
-use btc_keyaddress::key::Key;
 use crate::{
     tx::{
         Input,
         Output,
-        Tx
+        Tx,
+        Script,
+        ScriptType
     },
     PrivKey,
-    PubKey,
     Signature,
     api,
     signature,
     util::{
         Network,
         bytes,
-        serialize::Serialize,
-        serialize::serialize_sig
+        serialize::Serialize
     },
     hash,
     tx::Witness
@@ -44,7 +43,7 @@ pub struct TxBuilder {
     network: Network,
     inputs: Vec<Input>,
     outputs: Vec<Output>,
-    script_sigs: Vec<Option<Vec<u8>>>, //scriptSigs are stored in this attribute
+    script_sigs: Vec<Option<Script>>, //scriptSigs are stored in this attribute
     sighashes: Vec<Option<SigHash>>   //SigHash is stored to detect if new inputs/outputs can be added
 }
 
@@ -58,13 +57,6 @@ pub enum BuilderErr {
     InvalidInputIndex(usize),
     UnknownScriptType(),
     TxCommitted()
-}
-
-pub enum ScriptType {
-    P2PKH,
-    P2SH,
-    P2WPKH,
-    P2WSH
 }
 
 impl TxBuilder {
@@ -130,35 +122,53 @@ impl TxBuilder {
         }
         
         //Create a copy of the transaction
-        let mut tx_copy: Tx = Tx::construct(self.inputs.clone(), self.outputs.clone(), 0, false);
+        let tx_copy: Tx = Tx::construct(self.inputs.clone(), self.outputs.clone(), 0, false);
 
         //Get the unlocking script type of the input
-        let script_pub_key: Vec<u8> = Self::get_input_script_pub_key(&self, index)?;
-        let input_script_type: ScriptType = Self::determine_script_type(self, &script_pub_key, index)?;
-        
-        //Add the script pub key of the input currently being signed as the scriptSig
-        tx_copy.inputs[index].scriptSig = script_pub_key;
-        tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
-        
-
-        //Based on the provided SigHash, modify the transaction data
-        Self::modify_tx_copy(&mut tx_copy, &sighash, index)?;
-
-        //Sign the modified tx_copy
-        //Currently, only P2PKH signing is implemented
-        let signature: Signature = match input_script_type {
-            ScriptType::P2PKH => Self::sign_p2pkh_input(&tx_copy, &sighash, &key)?,
-            ScriptType::P2SH => unimplemented!(),             //Implement a custom P2SH signing function here
-            ScriptType::P2WPKH => Self::sign_p2wpkh_input()?, //New BIP-143 Signing method
-            ScriptType::P2WSH => unimplemented!()             //P2SH signing but with BIP-143
+        let script_pub_key: Script = Script::new(Self::get_input_script_pub_key(&self, index)?);
+        let input_script_type: ScriptType = match Script::determine_type(&script_pub_key) {
+            Ok(x) => match x {
+                ScriptType::P2WPKH | ScriptType::P2WSH => {
+                    self.inputs[index].segwit = true;
+                    x
+                },
+                _ => x
+            },
+            Err(_) => return Err(BuilderErr::UnknownScriptType())
         };
         
-        //Construct the scriptSig for the input
-        let script_sig: Vec<u8> = Self::construct_script_sig(&self, index, &signature, &sighash, &key)?;
+        //Sign the input and set the script_sig based on the locking script
+        match input_script_type {
+            ScriptType::P2PKH => self.p2pkh_pipe(&tx_copy, index, &sighash, &script_pub_key, &key)?,
+            ScriptType::P2SH => Self::p2sh_pipe()?,           //Implement a custom P2SH signing function here
+            ScriptType::P2WPKH => self.p2wpkh_pipe(&tx_copy, index, &sighash, &script_pub_key, &key)?,
+            ScriptType::P2WSH => Self::p2wsh_pipe()?          //P2SH signing but with BIP-143
+        }
+        
+        
+        //Add the script pub key of the input currently being signed as the scriptSig
+        // tx_copy.inputs[index].scriptSig = script_pub_key.code;
+        // tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
+        
 
-        //Store the scriptSig and sighash to use later  
-        self.script_sigs[index] = Some(script_sig);
-        self.sighashes[index] = Some(sighash);
+        // //Based on the provided SigHash, modify the transaction data
+        // Self::modify_tx_copy(&mut tx_copy, &sighash, index)?;
+
+        // //Sign the modified tx_copy
+        // //Currently, only P2PKH signing is implemented
+        // let signature: Signature = match input_script_type {
+        //     ScriptType::P2PKH => Self::sign_p2pkh_input(&tx_copy, &sighash, &key)?,
+        //     ScriptType::P2SH => unimplemented!(),             //Implement a custom P2SH signing function here
+        //     ScriptType::P2WPKH => Self::sign_p2wpkh_input()?, //New BIP-143 Signing method
+        //     ScriptType::P2WSH => unimplemented!()             //P2SH signing but with BIP-143
+        // };
+        
+        // //Construct the scriptSig for the input
+        // let script_sig: Vec<u8> = Self::construct_script_sig(&self, index, &signature, &sighash, &key)?;
+
+        // //Store the scriptSig and sighash to use later  
+        // self.script_sigs[index] = Some(script_sig);
+        // self.sighashes[index] = Some(sighash);
 
 
         
@@ -308,47 +318,75 @@ impl TxBuilder {
     }
 
     /**
-        Sign SegWit inputs  (BIP143)
+        Input signing pipe for P2PKH inputs
     */
-    fn sign_p2wpkh_input() -> Result<Signature, BuilderErr> {
-        //Use the Hash of the BIP143 Serialization format to sign the input
+    fn p2pkh_pipe(
+        &mut self, 
+        tx_copy: &Tx,
+        index: usize,
+        sighash: &SigHash,
+        script_pub_key: &Script,
+        key: &PrivKey
+    ) -> Result<(), BuilderErr> {
+        let mut tx_copy = tx_copy.clone();
         
+        //Add the script pub key of the input currently being signed as the scriptSig
+        tx_copy.inputs[index].scriptSig = script_pub_key.clone();
+        tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
+        
+
+        //Based on the provided SigHash, modify the transaction data
+        Self::modify_tx_copy(&mut tx_copy, &sighash, index)?;
+
+        //Sign the modified tx_copy
+        //Currently, only P2PKH signing is implemented
+        let signature: Signature = Self::sign_p2pkh_input(&tx_copy, &sighash, &key)?;
+ 
+        
+        //Construct the scriptSig for the input
+        let script_sig: Script = Script::pkh_unlocking(&signature, &key, sighash);
+
+        //Store the scriptSig and sighash to use later  
+        self.script_sigs[index] = Some(script_sig);
+        self.sighashes[index] = Some(sighash.clone());
+
+
+        
+        Ok(())
+    }
+
+    /**
+        Input signing pipe for P2WPKH inputs
+
+        USING P2PKH PIPE AS A PLACEHOLDER FOR NOW
+    */
+    fn p2wpkh_pipe(
+        &mut self, 
+        tx_copy: &Tx,
+        index: usize,
+        sighash: &SigHash,
+        script_pub_key: &Script,
+        key: &PrivKey
+    ) -> Result<(), BuilderErr> {
+        Self::p2pkh_pipe(self, tx_copy, index, sighash, script_pub_key, key)?;
+        Ok(())
+        
+        //todo!();
+        //Follow BIP143
+    }
+
+    /**
+        Input signing pipe for P2SH inputs
+    */
+    fn p2sh_pipe() -> Result<(), BuilderErr> {
         todo!();
     }
 
     /**
-        Construct the scriptSig for the input being signed based on the script pub key of the input,
-        signature, sighash and private key used to sign the input.
+        Input signing pipe for P2WSH inputs
     */
-    fn construct_script_sig(&self, index: usize, signature: &Signature, sighash: &SigHash, key: &PrivKey) -> Result<Vec<u8>, BuilderErr> {
-        let script_sig: Vec<u8> = match Self::get_input_script_pub_key(&self, index)?[0] {
-            //P2PKH ScriptSigs
-            //OP_DUP
-            0x76 | 0x00 => {
-                let mut v: Vec<u8> = vec![];
-                let ss = serialize_sig(&signature);
-                let pk: PubKey = PubKey::from_priv_key(&key);
-                v.push((ss.len()+1) as u8);                   //Length of Sig
-                v.append(&mut ss.to_vec());                   //Serialized Sig
-                match sighash {                               //SigHash
-                    SigHash::ALL => v.push(0x01),
-                    SigHash::NONE => v.push(0x02),
-                    SigHash::SINGLE => v.push(0x03),
-                    SigHash::ALL_ANYONECANPAY => v.push(0x81),
-                    SigHash::NONE_ANYONECANPAY => v.push(0x82),
-                    SigHash::SINGLE_ANYONECANPAY => v.push(0x83)
-                }
-                v.push(pk.as_bytes::<33>().len() as u8);      //Length of PK
-                v.append(&mut pk.as_bytes::<33>().to_vec());  //PK bytes
-                
-                v
-            },
-
-            //ScriptSigs other than P2PKH inputs are not implemented yet
-            _ => unimplemented!()
-        };
-
-        Ok(script_sig)
+    fn p2wsh_pipe() -> Result<(), BuilderErr> {
+        todo!();
     }
 
     pub fn build(&self) -> Result<Tx, BuilderErr> {
@@ -364,7 +402,7 @@ impl TxBuilder {
                 Some(x) => {
                     let mut input = self.inputs[i].clone();
                     input.scriptSig = x.clone();
-                    input.scriptSig_size = input.scriptSig.len() as u64;
+                    input.scriptSig_size = input.scriptSig.len();
 
                     inputs.push(input);
                 },
@@ -385,11 +423,12 @@ impl TxBuilder {
             flag = Some(0x00);
             marker = Some(0x01);
             witness = Some(vec![Witness::empty(); self.inputs.len()]);
+
             //For each input, if the input is SegWit, remove it's scriptSig and store it in the Witness array
             for i in 0..self.inputs.len() {
                 if self.inputs[i].segwit {
                     inputs[i].scriptSig_size = 0x00;
-                    inputs[i].scriptSig = vec![];
+                    inputs[i].scriptSig = Script::new(vec![]);
                     
                     let mut wd: Vec<Witness> = match witness {
                         Some(x) => x,

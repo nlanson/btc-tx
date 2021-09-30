@@ -57,16 +57,19 @@ impl SerializeTrait for Tx {
         
 
         //Concatenate the bytes
-        //Add witness data if it exists
+        //Add witness flags if the tx is marked as SegWit
         tx_bytes.append(&mut version_bytes);
         if self.segwit {
             tx_bytes.push(self.flag.unwrap());
             tx_bytes.push(self.marker.unwrap());
         }
+
         tx_bytes.append(&mut input_count);
         tx_bytes.append(&mut input_bytes);
         tx_bytes.append(&mut output_count);
         tx_bytes.append(&mut output_bytes);
+
+        //Append the witness data if it exists
         if self.segwit {
             let witness_vec: Vec<Witness> = self.witness.clone().unwrap();
 
