@@ -21,7 +21,8 @@ use crate::{
     util::{
         Network,
         bytes,
-        serialize::Serialize
+        serialize::Serialize,
+        varint::VarInt
     },
     hash,
     tx::Witness
@@ -145,34 +146,7 @@ impl TxBuilder {
             ScriptType::P2WPKH => self.p2wpkh_pipe(&tx_copy, index, &sighash, &script_pub_key, &key)?,
             ScriptType::P2WSH => Self::p2wsh_pipe()?          //P2SH signing but with BIP-143
         }
-        
-        
-        //Add the script pub key of the input currently being signed as the scriptSig
-        // tx_copy.inputs[index].scriptSig = script_pub_key.code;
-        // tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
-        
 
-        // //Based on the provided SigHash, modify the transaction data
-        // Self::modify_tx_copy(&mut tx_copy, &sighash, index)?;
-
-        // //Sign the modified tx_copy
-        // //Currently, only P2PKH signing is implemented
-        // let signature: Signature = match input_script_type {
-        //     ScriptType::P2PKH => Self::sign_p2pkh_input(&tx_copy, &sighash, &key)?,
-        //     ScriptType::P2SH => unimplemented!(),             //Implement a custom P2SH signing function here
-        //     ScriptType::P2WPKH => Self::sign_p2wpkh_input()?, //New BIP-143 Signing method
-        //     ScriptType::P2WSH => unimplemented!()             //P2SH signing but with BIP-143
-        // };
-        
-        // //Construct the scriptSig for the input
-        // let script_sig: Vec<u8> = Self::construct_script_sig(&self, index, &signature, &sighash, &key)?;
-
-        // //Store the scriptSig and sighash to use later  
-        // self.script_sigs[index] = Some(script_sig);
-        // self.sighashes[index] = Some(sighash);
-
-
-        
         Ok(())
     }
 
@@ -291,8 +265,8 @@ impl TxBuilder {
             => {
                 let mut outpoints = vec![];
                 for i in 0..tx_copy.inputs.len() {
-                    outpoints.append(&mut tx_copy.inputs[i].txid.to_vec().clone());
-                    outpoints.append(&mut tx_copy.inputs[i].vout.to_le_bytes().to_vec().clone());
+                    outpoints.append(&mut bytes::reverse(&tx_copy.inputs[i].txid.to_vec()));
+                    outpoints.append(&mut tx_copy.inputs[i].vout.to_le_bytes().to_vec());
                 }
                 hash::sha256d(outpoints)
             },
@@ -306,7 +280,7 @@ impl TxBuilder {
             SigHash::ALL => {
                 let mut sequences = vec![];
                 for i in 0..tx_copy.inputs.len() {
-                    sequences.append(&mut tx_copy.inputs[i].sequence.to_le_bytes().to_vec().clone());
+                    sequences.append(&mut tx_copy.inputs[i].sequence.to_le_bytes().to_vec());
                 }
                 hash::sha256d(sequences)
             },
@@ -320,16 +294,14 @@ impl TxBuilder {
             SigHash::SINGLE => {
                 if index >= tx_copy.outputs.len() { return Err(BuilderErr::OutputIndexMissing(index)) }
                 let mut output = vec![];
-                output.append(&mut tx_copy.outputs[index].value.to_be_bytes().to_vec().clone());
-                output.append(&mut tx_copy.outputs[index].script_pub_key.code.clone());
+                output.append(&mut tx_copy.outputs[index].serialize().unwrap());
                 hash::sha256d(output)
             },
             SigHash::NONE => [0; 32],
             _ => {
                 let mut outputs = vec![];
                 for i in 0..tx_copy.outputs.len() {
-                    outputs.append(&mut tx_copy.outputs[i].value.to_be_bytes().to_vec().clone());
-                    outputs.append(&mut tx_copy.outputs[i].script_pub_key.code.clone());
+                    outputs.append(&mut tx_copy.outputs[index].serialize().unwrap());
                 }
                 hash::sha256d(outputs)
             },
@@ -347,7 +319,7 @@ impl TxBuilder {
         script_code.append(&mut vec![0x88, 0xac]);
 
         let mut outpoint: Vec<u8> = vec![];
-        outpoint.append(&mut tx_copy.inputs[index].txid.to_vec());
+        outpoint.append(&mut bytes::reverse(&tx_copy.inputs[index].txid.to_vec()));
         outpoint.append(&mut tx_copy.inputs[index].vout.to_le_bytes().to_vec());
 
 
@@ -369,7 +341,7 @@ impl TxBuilder {
             SigHash::NONE_ANYONECANPAY => 0x82,
             SigHash::SINGLE_ANYONECANPAY => 0x83
         };
-        bip143_prehash_serialization.append(&mut sh.to_le_bytes().to_vec());                                            //Sighash
+        bip143_prehash_serialization.append(&mut sh.to_le_bytes().to_vec());                                 //Sighash
     
         
 
@@ -464,8 +436,6 @@ impl TxBuilder {
 
     /**
         Input signing pipe for P2WPKH inputs
-
-        USING P2PKH PIPE AS A PLACEHOLDER FOR NOW
     */
     fn p2wpkh_pipe(
         &mut self, 
@@ -476,6 +446,7 @@ impl TxBuilder {
         key: &PrivKey
     ) -> Result<(), BuilderErr> {
         let bip143_serialized_tx: Vec<u8> = self.segwit_tx_modification(tx_copy, sighash, index, script_pub_key)?;
+        println!("{}", bip143_serialized_tx.len());
         let hash: [u8; 32] = hash::sha256d(bip143_serialized_tx);
 
         let msg = match signature::new_msg(&hash) {
