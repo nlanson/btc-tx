@@ -21,7 +21,8 @@ fn create_testnet_tx() {
 
 
     let key: PrivKey = PrivKey::from_slice(&[25, 185, 89, 6, 72, 28, 43, 234, 167, 160, 163, 78, 240, 86, 146, 133, 49, 98, 255, 253, 45, 121, 146, 10, 233, 252, 142, 232, 193, 73, 255, 150]).unwrap();
-    txb.sign_input(0, &key, tx::SigHash::ALL).unwrap();
+    let signing_data = tx::SigningData::new(vec![key], None);
+    txb.sign_input(0, &signing_data, tx::SigHash::ALL).unwrap();
     let tx: tx::Tx = txb.build().unwrap();
     println!("{}", encode_02x(&tx.serialize().unwrap()));
 }
@@ -32,7 +33,8 @@ fn create_segwit_output_tx() {
     txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 70000);
 
     let key: PrivKey = PrivKey::from_slice(&[25, 185, 89, 6, 72, 28, 43, 234, 167, 160, 163, 78, 240, 86, 146, 133, 49, 98, 255, 253, 45, 121, 146, 10, 233, 252, 142, 232, 193, 73, 255, 150]).unwrap();
-    txb.sign_input(0, &key, tx::SigHash::ALL).unwrap();
+    let signing_data = tx::SigningData::new(vec![key], None);
+    txb.sign_input(0, &signing_data, tx::SigHash::ALL).unwrap();
     let tx: tx::Tx = txb.build().unwrap();
     println!("{}", encode_02x(&tx.serialize().unwrap()));
 }
@@ -44,8 +46,8 @@ fn create_segwit_tx() {
     
     let key: PrivKey = PrivKey::from_slice(&[131, 187, 80, 16, 233, 20, 231, 76, 171, 218, 189, 168, 220, 150, 47, 40, 73, 149, 85, 236, 159, 205, 198, 160, 182, 32, 149, 30, 95, 184, 54, 186]).unwrap();
     let address = btc_keyaddress::address::Address::testnet_p2wpkh(&PubKey::from_priv_key(&key)).unwrap();
-
-    txb.sign_input(0, &key, tx::SigHash::ALL);
+    let signing_data = tx::SigningData::new(vec![key], None);
+    txb.sign_input(0, &signing_data, tx::SigHash::ALL);
     let tx: tx::Tx = txb.build().unwrap();
     println!("{}", encode_02x(&tx.serialize().unwrap()));
 }

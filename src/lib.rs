@@ -11,11 +11,10 @@
 
     Todo:
         - Transaction Builder (See bitcoinjs-lib TransactionBuilder)
-                - Possibly split up builder based on input/output type
-                - Implementing P2SH inputs:
-                      > When signing a P2SH input, the redeemScript needs to be provided
-                - Implementing SegWit
-                      > Signing SegWit Inputs needs to follow BIP-143 specification
+                - Checks on various elements (eg network, value)
+                - Implementing P2SH and P2WSH inputs:
+                      > When signing a P2SH input's and it's SegWit counterpart, the redeemScript needs to be provided
+                
     
         - Sig module
                 - Verify txns with sighashes
