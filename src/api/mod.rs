@@ -116,7 +116,9 @@ impl JsonRPC {
         Ok(Self::sats(txd.vout[vout as usize].value.clone()))
     }
 
+    //Conversion here is not consistent due to floating point arithmatic.
+    //Using round() as a work around but don't expect it to work much better.
     fn sats(btc: f64) -> u64 {
-        (btc * 100000000.) as u64
+        (btc * 100000000.).round() as u64
     }
 }

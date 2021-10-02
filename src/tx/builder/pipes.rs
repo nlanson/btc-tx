@@ -25,12 +25,8 @@ pub fn p2pkh(
 ) -> Result<(), BuilderErr> {
     let mut tx_copy = tx_copy.clone();
 
-    //Add the script pub key of the input currently being signed as the scriptSig
-    tx_copy.inputs[index].scriptSig = script_pub_key.clone();
-    tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
-
     //Modify and get the hash preimage of the transaction
-    let hash_preimage = hashpreimage::legacy(&mut tx_copy, sighash, index)?;
+    let hash_preimage = hashpreimage::legacy(&mut tx_copy, sighash, index, script_pub_key)?;
 
     //Hash the preimage and sign it with the key.
     let msg = match signature::new_msg(&hash::sha256d(&hash_preimage)) {

@@ -74,7 +74,7 @@ impl Script {
             Ok(x) => {
                 x[1..x.len()-4].to_vec()
             },
-            Err(x) => panic!("cannot decode recepient address")
+            Err(_) => panic!("cannot decode recepient address")
         };
         unlock_script.append(&mut &mut address_bytes);
         unlock_script.push(ScriptCodes::OP_EQUALVERIFY as u8);

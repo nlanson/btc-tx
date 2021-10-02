@@ -2,7 +2,6 @@ use crate::{
     tx::Script,
     tx::SigHash,
     tx::Tx,
-    tx::TxBuilder,
     util::serialize::Serialize,
     util::Network,
     util::bytes,
@@ -17,8 +16,13 @@ use super::BuilderErr;
 pub fn legacy(
     tx_copy: &mut Tx,
     sighash: &SigHash,
-    index: usize
+    index: usize,
+    script_pub_key: &Script
 ) -> Result<Vec<u8>, BuilderErr> {
+    //Add the locking script of the input being signed to the tx_copy to sign it.
+    tx_copy.inputs[index].scriptSig = script_pub_key.clone();
+    tx_copy.inputs[index].scriptSig_size = tx_copy.inputs[index].scriptSig.len() as u64;
+    
     match sighash {
         SigHash::ALL => { 
             /*No need to modify txdata for sighash_all*/ 
@@ -132,7 +136,7 @@ pub fn segwit(
         _ => {
             let mut outputs = vec![];
             for i in 0..tx_copy.outputs.len() {
-                outputs.append(&mut tx_copy.outputs[index].serialize().unwrap());
+                outputs.append(&mut tx_copy.outputs[i].serialize().unwrap());
             }
             hash::sha256d(outputs)
         },
@@ -142,6 +146,8 @@ pub fn segwit(
         Ok(x) => x,
         Err(_) => return Err(BuilderErr::CannotGetInputValue())
     };
+    //THERE IS A BUG HERE THAT OCCURS SOMETIMES WHEN FLOATING POINT ARITHMATIC FAILS
+    //SEE API MODULE
 
     let mut script_code = script_code.code.clone();
     script_code.remove(0);

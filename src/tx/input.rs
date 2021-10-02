@@ -23,7 +23,7 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct Input {
-    pub txid: [u8; 32],         //Pointer to the tx containing UTXO to be spent    (little endian)
+    pub txid: [u8; 32],         //Pointer to the tx containing UTXO to be spent    (little endian) NOT STORED AS LITTLE ENDIAN
     pub vout: u32,              //The index number of the UTXO in the referred tx  (little endian)
     pub scriptSig_size: u64,    //To be converted into a VarInt for serialization
     pub scriptSig: Script,      //Unlocking script opcodes   
