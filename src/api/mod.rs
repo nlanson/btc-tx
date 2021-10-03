@@ -22,7 +22,7 @@ pub struct TxData {
     vin: Vec<InputData>,
     vout: Vec<OutputData>,
     hex: String,
-    blockhash: String,
+    blockhash: Option<String>,
     confirmations: u32,
     time: u64, 
     blocktime: u64
@@ -53,7 +53,7 @@ pub struct OutputData {
 pub struct ScriptPubKeyData {
     asm: String,
     hex: String,
-    address: String,
+    address: Option<String>,
     r#type: String
 }
 
@@ -87,7 +87,7 @@ impl JsonRPC {
         let txd = match reqwest::get(url).await {
             Ok(x) => match x.json::<TxData>().await {
                 Ok(x) => x,
-                Err(_) => return Err(APIErr::CannotDeserialize())
+                Err(x) => return Err(APIErr::CannotDeserialize())
             },
             Err(_) => return Err(APIErr::FailedToGet())
         };
@@ -98,7 +98,7 @@ impl JsonRPC {
     pub fn get_input_script_pub_key_hex(&self, txid: &str, vout: u32) -> Result<String, APIErr>  {
         let txd = Self::get_tx(self, txid)?;
     
-        if vout as usize > txd.vout.len() {
+        if vout as usize > txd.vout.len()+1 {
             return Err(APIErr::MissingVout())
         }
     

@@ -3,6 +3,7 @@
 */
 
 use btc_tx::*;
+use btc_tx::tx::SigningData;
 use btc_tx::{
     util::serialize::Serialize
 };
@@ -10,11 +11,14 @@ use btc_keyaddress::key::Key;
 use btc_keyaddress::prelude::*;
 use btc_keyaddress::key::PrivKey as PrivKey;
 use btc_keyaddress::key::PubKey as PubKey;
+use btc_keyaddress::prelude::Script as RedeemScript;
 
 fn main() {
     //segwit_tx2();
     //segwit_tx();
-    multi_in_segwit_tx1();
+    //multi_in_segwit_tx1();
+    //send_to_p2sh();
+    spend_legacy_multisig();
 }
 
 /**
@@ -85,4 +89,42 @@ fn multi_in_segwit_tx1() {
     let tx: tx::Tx = txb.build().unwrap();
     println!("{}", encode_02x(&tx.serialize().unwrap()));
 
+}
+
+/**
+    Sending to a P2SH address
+    BROADCASTED: c134df133de45816a7cee06f53ee19519198700b7a90ad4e3f08b76ad311d8c9
+*/
+fn send_to_p2sh() {
+    let mut txb = tx::TxBuilder::new(util::Network::Test);
+    txb.add_input("c134df133de45816a7cee06f53ee19519198700b7a90ad4e3f08b76ad311d8c9", 0).unwrap();
+    txb.add_output("2NEKRqUqoDtsELzpBa5wuWEiJeVbio5cSa2", 22000).unwrap();
+
+    let key = PrivKey::from_wif("cRzmfLNVsbHp5MYJhY8xz6DaYJBUgSKQL8jwU2xL3su6GScPgxsb").unwrap();
+    let signing_data = SigningData::new(vec![key], None);
+    txb.sign_input(0, &signing_data, tx::SigHash::ALL).unwrap();
+
+    println!("{:?}", txb.script_sigs);
+
+    let tx = txb.build().unwrap();
+    println!("{}", encode_02x(&tx.serialize().unwrap()));
+}
+
+
+fn spend_legacy_multisig() {
+    let mut txb = tx::TxBuilder::new(util::Network::Test);
+    txb.add_input("a0cbeea4127b77724bb960720d0523835f66fced18ac6b315e6dc3d1daf49ce2", 0).unwrap();
+    txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 20000).unwrap();
+
+    let key_1 = PrivKey::from_wif("cU1mPkyNgJ8ceLG5v2zN1VkZcvDCE7VK8KrnHwW82PZb6RCq7zRq").unwrap();
+    let key_2 = PrivKey::from_wif("cPTFNJD7hgbZTqNJgW89HABGtRzYo5aLpCQKvmNdtRNGWo49NAky").unwrap();
+    let key_3 = PrivKey::from_wif("cNUe2L9CNJZoedMU8YNrzRuxFc56dvMjFxzK4mTsSGhXwbidAyog").unwrap();
+    let signing_data = SigningData::new(
+        vec![key_1.clone(), key_2.clone()],
+        Some(tx::Script::p2sh_multisig_locking(2, 3, &vec![key_1, key_2, key_3]))
+    );
+    txb.sign_input(0, &signing_data, tx::SigHash::ALL).unwrap();
+
+    let tx = txb.build().unwrap();
+    println!("{}", encode_02x(&tx.serialize().unwrap()));
 }

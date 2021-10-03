@@ -44,6 +44,7 @@ pub struct TxBuilder {
     pub sighashes: Vec<Option<SigHash>>   //SigHash is stored to detect if new inputs/outputs can be added
 }
 
+#[derive(Clone)]
 pub struct SigningData {
     pub keys: Vec<PrivKey>,
     pub script: Option<Script>
@@ -69,7 +70,8 @@ pub enum BuilderErr {
     UnknownScriptType(),
     TxCommitted(),
     CannotGetInputValue(),
-    InvalidSigningData()
+    InvalidSigningData(),
+    RedeemScriptMissing()
 }
 
 impl TxBuilder {
@@ -168,7 +170,7 @@ impl TxBuilder {
                     return Err(BuilderErr::InvalidSigningData())
                 }
             },
-            ScriptType::P2SH => pipes::p2sh()?,           //Implement a custom P2SH signing function here
+            ScriptType::P2SH => pipes::p2sh(self, &tx_copy, index, &sighash, &script_pub_key, &signing_data)?,
             ScriptType::P2WSH => pipes::p2wsh()?          //P2SH signing but with BIP-143
         }
 
@@ -178,7 +180,7 @@ impl TxBuilder {
     /**
         Get the scriptPubKey for the input being signed
     */
-    fn get_input_script_pub_key(&self, index: usize) -> Result<Vec<u8>,BuilderErr> {
+    fn get_input_script_pub_key(&self, index: usize) -> Result<Vec<u8> ,BuilderErr> {
         let rpc = api::JsonRPC::new(&self.network);
         let input_spkhex: Vec<u8> = match rpc.get_input_script_pub_key_hex(&bytes::encode_02x(&self.inputs[index].txid), self.inputs[index].vout) {
             Ok(x) => bytes::decode_02x(&x),
@@ -266,4 +268,9 @@ impl TxBuilder {
             segwit
         })
     }
+}
+
+#[cfg(test)]
+mod tests {
+    
 }

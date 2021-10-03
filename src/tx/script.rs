@@ -5,11 +5,13 @@ use btc_keyaddress::key::Key;
 use crate::{
     util::{
         bech32,
-        serialize::serialize_sig
+        serialize::serialize_sig,
+        varint::VarInt
     },
     Signature,
     tx::{
-        SigHash
+        SigHash,
+        SigningData
     },
     PrivKey, PubKey
 };
@@ -39,7 +41,8 @@ pub enum ScriptCodes {
 }
 
 pub enum ScriptErr {
-    UnknownScript()
+    UnknownScript(),
+    MissingScript()
 }
 
 #[derive(Debug, Clone)]
@@ -87,18 +90,19 @@ impl Script {
         Create a P2SH locking script from an script hash address
     */
     pub fn p2sh_locking(address: &str) -> Self {
-        let mut unlocking_script: Vec<u8> = vec![];
-                unlocking_script.push(ScriptCodes::OP_HASH160 as u8);
+        let mut locking_script: Vec<u8> = vec![];
+                locking_script.push(ScriptCodes::OP_HASH160 as u8);
                 let mut script_hash_bytes: Vec<u8> = match bs58::decode(address).into_vec() {
                     Ok(x) => {
                         x[1..x.len()-4].to_vec()
                     },
                     Err(_) => panic!("cannot decode redeeming script")
                 };
-                unlocking_script.append(&mut script_hash_bytes);
-                unlocking_script.push(ScriptCodes::OP_EQUAL as u8);
+                locking_script.append(&mut VarInt::from_usize(script_hash_bytes.len()).unwrap());
+                locking_script.append(&mut script_hash_bytes);
+                locking_script.push(ScriptCodes::OP_EQUAL as u8);
                 
-                Self::new(unlocking_script)
+                Self::new(locking_script)
     }
 
     /**
@@ -144,6 +148,7 @@ impl Script {
         let input_script_type: ScriptType = match self.code[0] {
             0x76 => ScriptType::P2PKH,
             0xA9 => ScriptType::P2SH,
+            //Segwit Version 0
             0x00 => {
                 match self.code[1] {
                     0x14 => ScriptType::P2WPKH,
@@ -155,6 +160,52 @@ impl Script {
         };
 
         Ok(input_script_type)
+    }
+
+    /**
+        Wrapper around btc-keyaddress lib to create M-of-N multisig locking scripts
+        to present when signing P2SH inputs.
+    */
+    pub fn p2sh_multisig_locking(m: u8, n: u8, keys: &Vec<PrivKey>) -> Self {
+        let script = match btc_keyaddress::prelude::Script::multisig(m, n, keys) {
+            Ok(x) => x,
+            Err(_) => panic!("Failed to create p2SH MultiSig redeem script")
+        };
+
+        Self::new(script.script)
+    }
+
+    /**
+        Returns the scriptSig for a P2SH multisig input
+    */
+    pub fn p2sh_multisig_unlocking(signatures: &Vec<Signature>, signing_data: &SigningData, sighash: &SigHash) -> Result<Self, ScriptErr> {
+        let mut redeem_script: Script = match signing_data.script.clone() {
+            Some(x) => x,
+            None => return Err(ScriptErr::MissingScript())
+        };
+        
+        let mut script: Vec<u8> = vec![];
+        script.push(0x00); //Push OP_0 first with multisig redeem script due to Bitcoin Core bug
+        for i in 0..signatures.len() {
+            //Append each signature to the script.
+            //If none are present this loop will not be entered
+            let mut serialized_signature = serialize_sig(&signatures[i]).to_vec();
+            script.append(&mut VarInt::from_usize(serialized_signature.len() + 1).unwrap());
+            script.append(&mut serialized_signature);
+            script.push(sighash.clone() as u8);
+        }
+        
+        //Append the redeem script
+        //script.append(&mut VarInt::from_usize(redeem_script.code.len()).unwrap());
+        
+        //TEMPORARY since the line above translates to OP_VERIFY instead of pushing data.
+        script.push(0x4c); //push data 1 bytes
+        script.push(redeem_script.code.len() as u8);
+
+
+        script.append(&mut redeem_script.code);
+
+        Ok(Script::new(script))
     }
 
 }

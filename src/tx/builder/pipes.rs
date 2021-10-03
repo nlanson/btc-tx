@@ -1,11 +1,14 @@
 use crate::{
-    tx::TxBuilder,
-    tx::Tx,
-    tx::SigHash,
-    tx::Script,
     PrivKey,
-    signature,
-    hash
+    hash,
+    signature, Signature,
+    tx::{
+        Script,
+        SigningData
+    },
+    tx::SigHash,
+    tx::Tx,
+    tx::TxBuilder
 };
 use super::{ 
     hashpreimage,
@@ -75,11 +78,42 @@ pub fn p2wpkh(
     Ok(())
 }
 
-pub fn p2sh() -> Result<(), BuilderErr> {
-    unimplemented!();
-    //P2SH will be similar to P2PKH but there may be multiple signatures in the scriptSig.
-    //The script sig will consist of the redeem script provided by the user and the signature of
-    //however many private keys the user provides
+pub fn p2sh(
+    builder: &mut TxBuilder,
+    tx_copy: &Tx,
+    index: usize,
+    sighash: &SigHash,
+    script_pub_key: &Script,
+    signing_data: &SigningData
+) -> Result<(), BuilderErr> {
+    let mut tx_copy = tx_copy.clone();
+
+    //Modify and get the hash preimage of the transaction
+    let hash_preimage = hashpreimage::legacy(&mut tx_copy, sighash, index, script_pub_key)?;
+
+    //Create a signature for each private key provided. 
+    //If none are provided, it will not do anything.
+    let mut signatures: Vec<Signature> = vec![];
+    let msg = match signature::new_msg(&hash::sha256d(&hash_preimage)) {
+        Ok(x) => x,
+        Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
+    };
+    for i in 0..signing_data.keys.len() {
+        signatures.push(
+            signature::sign(&msg, &signing_data.keys[i].raw())
+        );
+    }
+
+    //Construct and store the scriptSig and sigHash
+    let script_sig: Script = match Script::p2sh_multisig_unlocking(&signatures, signing_data, sighash) {
+        Ok(x) => x,
+        Err(_) => return Err(BuilderErr::RedeemScriptMissing())
+    };
+    builder.script_sigs[index] = Some(script_sig);
+    builder.sighashes[index] = Some(sighash.clone());
+    
+    
+    Ok(())
 }
 
 pub fn p2wsh() -> Result<(), BuilderErr> {

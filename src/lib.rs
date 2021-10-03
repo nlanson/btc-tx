@@ -14,6 +14,7 @@
                 - Checks on various elements (eg network, value)
                 - Implementing P2SH and P2WSH inputs:
                       > When signing a P2SH input's and it's SegWit counterpart, the redeemScript needs to be provided
+                      > Find where P2SH-MultiSig input signing is going wrong
                 
     
         - Sig module

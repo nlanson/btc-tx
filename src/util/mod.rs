@@ -1,4 +1,4 @@
-pub use btc_keyaddress::prelude::*;
+use btc_keyaddress::prelude::*;
 
 pub mod bytes;
 pub mod serialize;
