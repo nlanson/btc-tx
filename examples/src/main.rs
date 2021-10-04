@@ -18,7 +18,7 @@ fn main() {
     //segwit_tx();
     //multi_in_segwit_tx1();
     //send_to_p2sh();
-    spend_legacy_multisig();
+    spend_p2sh();
 }
 
 /**
@@ -111,17 +111,15 @@ fn send_to_p2sh() {
 }
 
 
-fn spend_legacy_multisig() {
+fn spend_p2sh() {
     let mut txb = tx::TxBuilder::new(util::Network::Test);
-    txb.add_input("a0cbeea4127b77724bb960720d0523835f66fced18ac6b315e6dc3d1daf49ce2", 0).unwrap();
+    txb.add_input("34ab5526d94325a2bcd8bf5dc145c4af884ef6c6ca3ccb029a77ebe62d614f9e", 1).unwrap();
     txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 20000).unwrap();
 
     let key_1 = PrivKey::from_wif("cU1mPkyNgJ8ceLG5v2zN1VkZcvDCE7VK8KrnHwW82PZb6RCq7zRq").unwrap();
-    let key_2 = PrivKey::from_wif("cPTFNJD7hgbZTqNJgW89HABGtRzYo5aLpCQKvmNdtRNGWo49NAky").unwrap();
-    let key_3 = PrivKey::from_wif("cNUe2L9CNJZoedMU8YNrzRuxFc56dvMjFxzK4mTsSGhXwbidAyog").unwrap();
     let signing_data = SigningData::new(
-        vec![key_1.clone(), key_2.clone()],
-        Some(tx::Script::p2sh_multisig_locking(2, 3, &vec![key_1, key_2, key_3]))
+        vec![key_1.clone()],
+        Some(tx::Script::p2sh_multisig_locking(1, 1, &vec![key_1]))
     );
     txb.sign_input(0, &signing_data, tx::SigHash::ALL).unwrap();
 

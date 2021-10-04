@@ -185,7 +185,7 @@ impl Script {
         };
         
         let mut script: Vec<u8> = vec![];
-        script.push(0x00); //Push OP_0 first with multisig redeem script due to Bitcoin Core bug
+        script.push(0x00); //Push OP_0 first with multisig redeem script due to a bug in Bitcoin core
         for i in 0..signatures.len() {
             //Append each signature to the script.
             //If none are present this loop will not be entered
@@ -196,10 +196,11 @@ impl Script {
         }
         
         //Append the redeem script
-        //script.append(&mut VarInt::from_usize(redeem_script.code.len()).unwrap());
-        
-        //TEMPORARY since the line above translates to OP_VERIFY instead of pushing data.
-        script.push(0x4c); //push data 1 bytes
+        //If the redeem script is too long to use push_bytes op code,
+        //use the push data opcode.
+        if redeem_script.code.len() > 0x4b {
+            script.push(0x4c); //push data 1 bytes
+        }
         script.push(redeem_script.code.len() as u8);
 
 

@@ -83,13 +83,12 @@ pub fn p2sh(
     tx_copy: &Tx,
     index: usize,
     sighash: &SigHash,
-    script_pub_key: &Script,
     signing_data: &SigningData
 ) -> Result<(), BuilderErr> {
     let mut tx_copy = tx_copy.clone();
 
-    //Modify and get the hash preimage of the transaction
-    let hash_preimage = hashpreimage::legacy(&mut tx_copy, sighash, index, script_pub_key)?;
+    //Modify and get the hash preimage of the transaction                                //Create hashpreimage with the redeemscript
+    let hash_preimage = hashpreimage::legacy(&mut tx_copy, sighash, index, &signing_data.script.clone().unwrap())?;
 
     //Create a signature for each private key provided. 
     //If none are provided, it will not do anything.

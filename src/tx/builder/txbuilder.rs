@@ -170,7 +170,7 @@ impl TxBuilder {
                     return Err(BuilderErr::InvalidSigningData())
                 }
             },
-            ScriptType::P2SH => pipes::p2sh(self, &tx_copy, index, &sighash, &script_pub_key, &signing_data)?,
+            ScriptType::P2SH => pipes::p2sh(self, &tx_copy, index, &sighash, &signing_data)?,
             ScriptType::P2WSH => pipes::p2wsh()?          //P2SH signing but with BIP-143
         }
 
