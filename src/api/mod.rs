@@ -71,8 +71,8 @@ pub struct JsonRPC {
 impl JsonRPC {
     pub fn new(network: &Network) -> Self {
         let (network, url) = match network {
-            Network::Main => (Network::Main, String::from("https://bitcoinexplorer.org/api")),
-            Network::Test => (Network::Test, String::from("https://testnet.bitcoinexplorer.org/api"))
+            Network::Bitcoin => (Network::Bitcoin, String::from("https://bitcoinexplorer.org/api")),
+            Network::Testnet => (Network::Testnet, String::from("https://testnet.bitcoinexplorer.org/api"))
         };
         
         Self {
