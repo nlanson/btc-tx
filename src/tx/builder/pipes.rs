@@ -78,6 +78,14 @@ pub fn p2wpkh(
     Ok(())
 }
 
+/**
+    Sign a legacy P2SH input.
+    When constructing a scriptSig, it assumes the P2SH input is
+    a multisig input (as these are the most common).
+    
+    However, if no keys are provided in the signing_data, it can handle 
+    custom scripts.
+*/
 pub fn p2sh(
     builder: &mut TxBuilder,
     tx_copy: &Tx,

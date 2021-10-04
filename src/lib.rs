@@ -12,15 +12,16 @@
     Todo:
         - Transaction Builder (See bitcoinjs-lib TransactionBuilder)
                 - Checks on various elements (eg network, value)
-                - Implementing P2SH and P2WSH inputs:
-                      > When signing a P2SH input's and it's SegWit counterpart, the redeemScript needs to be provided
-                      > Find where P2SH-MultiSig input signing is going wrong
+                - Implement P2WSH input signing
+                        > This will involve creating the p2wsh pipe method and modifying the segwit hashpreimage method
+                           to accomadate for script_code for P2WSH as defined in BIP 143
                 
     
         - Sig module
                 - Verify txns with sighashes
         
         - Unit tests
+            > Create unit tests for implemented transaction types using already broadcasted data in examples/main.rs
 */
 
 //Modules

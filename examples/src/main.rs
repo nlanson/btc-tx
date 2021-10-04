@@ -18,7 +18,8 @@ fn main() {
     //segwit_tx();
     //multi_in_segwit_tx1();
     //send_to_p2sh();
-    spend_p2sh();
+    //spend_p2sh();
+    spend_2_of_3();
 }
 
 /**
@@ -111,6 +112,11 @@ fn send_to_p2sh() {
 }
 
 
+/**
+    1 of 1 multisig P2SH transaction
+
+    BROADCASTED: fd091c2594549f72c21d9c0541f6df660d47656f4b4a9898521884191a7c378a
+*/
 fn spend_p2sh() {
     let mut txb = tx::TxBuilder::new(util::Network::Test);
     txb.add_input("34ab5526d94325a2bcd8bf5dc145c4af884ef6c6ca3ccb029a77ebe62d614f9e", 1).unwrap();
@@ -120,6 +126,31 @@ fn spend_p2sh() {
     let signing_data = SigningData::new(
         vec![key_1.clone()],
         Some(tx::Script::p2sh_multisig_locking(1, 1, &vec![key_1]))
+    );
+    txb.sign_input(0, &signing_data, tx::SigHash::ALL).unwrap();
+
+    let tx = txb.build().unwrap();
+    println!("{}", encode_02x(&tx.serialize().unwrap()));
+}
+
+/**
+    2 of 3 multisig P2SH transaction
+
+    BROADCASTED: 9ea7d9fe33b083193098004f81ea0eb20964c244fe98c381043ea74e7b58c302
+*/
+fn spend_2_of_3() {
+    let mut txb = tx::TxBuilder::new(util::Network::Test);
+    txb.add_input("a0cbeea4127b77724bb960720d0523835f66fced18ac6b315e6dc3d1daf49ce2", 0).unwrap();
+    txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 20000).unwrap();
+
+    let keys = vec![
+        PrivKey::from_wif("cU1mPkyNgJ8ceLG5v2zN1VkZcvDCE7VK8KrnHwW82PZb6RCq7zRq").unwrap(),
+        PrivKey::from_wif("cPTFNJD7hgbZTqNJgW89HABGtRzYo5aLpCQKvmNdtRNGWo49NAky").unwrap(),
+        PrivKey::from_wif("cNUe2L9CNJZoedMU8YNrzRuxFc56dvMjFxzK4mTsSGhXwbidAyog").unwrap(),
+    ];
+    let signing_data = SigningData::new(
+        vec![keys[0].clone(), keys[1].clone()],
+        Some(tx::Script::p2sh_multisig_locking(2, 3, &keys))
     );
     txb.sign_input(0, &signing_data, tx::SigHash::ALL).unwrap();
 

@@ -142,12 +142,12 @@ pub fn segwit(
         },
     };
 
+    //THERE IS A BUG HERE THAT OCCURS SOMETIMES WHEN FLOATING POINT ARITHMATIC FAILS
+    //SEE API MODULE
     let input_value: u64 = match api::JsonRPC::new(network).get_input_value(&bytes::encode_02x(&tx_copy.inputs[index].txid), tx_copy.inputs[index].vout){
         Ok(x) => x,
         Err(_) => return Err(BuilderErr::CannotGetInputValue())
     };
-    //THERE IS A BUG HERE THAT OCCURS SOMETIMES WHEN FLOATING POINT ARITHMATIC FAILS
-    //SEE API MODULE
 
     let mut script_code = script_code.code.clone();
     script_code.remove(0);
