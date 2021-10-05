@@ -14,12 +14,13 @@ use btc_keyaddress::key::PubKey as PubKey;
 use btc_keyaddress::prelude::Script as RedeemScript;
 
 fn main() {
+    //legacy_tx();
     //segwit_tx2();
     //segwit_tx();
     //multi_in_segwit_tx1();
     //send_to_p2sh();
     //spend_p2sh();
-    spend_2_of_3();
+    //spend_2_of_3();
 }
 
 /**

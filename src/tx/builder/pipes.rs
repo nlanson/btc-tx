@@ -4,11 +4,12 @@ use crate::{
     signature, Signature,
     tx::{
         Script,
-        SigningData
-    },
-    tx::SigHash,
-    tx::Tx,
-    tx::TxBuilder
+        SigningData,
+        SigHash,
+        Tx,
+        TxBuilder,
+        Witness
+    }
 };
 use super::{ 
     hashpreimage,
@@ -69,9 +70,9 @@ pub fn p2wpkh(
     };
     let signature = signature::sign(&msg, &key.raw());
 
-    //Construct the scriptSig and store it and the sighash for later use
-    let script_sig: Script = Script::pkh_unlocking(&signature, &key, sighash); 
-    builder.script_sigs[index] = Some(script_sig);
+    //Create the witness and store it and the sighash
+    let witness: Witness = Witness::p2wpkh(&signature, &key, sighash);
+    builder.witness[index] = Some(witness);
     builder.sighashes[index] = Some(sighash.clone());
 
     
@@ -95,7 +96,7 @@ pub fn p2sh(
 ) -> Result<(), BuilderErr> {
     let mut tx_copy = tx_copy.clone();
 
-    //Modify and get the hash preimage of the transaction                                //Create hashpreimage with the redeemscript
+    //Modify and get the hash preimage of the transaction                 //Create hashpreimage with the redeemscript
     let hash_preimage = hashpreimage::legacy(&mut tx_copy, sighash, index, &signing_data.script.clone().unwrap())?;
 
     //Create a signature for each private key provided. 

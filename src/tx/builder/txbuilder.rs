@@ -41,6 +41,7 @@ pub struct TxBuilder {
     inputs: Vec<Input>,
     outputs: Vec<Output>,
     pub script_sigs: Vec<Option<Script>>, //scriptSigs are stored in this attribute
+    pub witness: Vec<Option<Witness>>,    //witnesses are stored in this attribute
     pub sighashes: Vec<Option<SigHash>>   //SigHash is stored to detect if new inputs/outputs can be added
 }
 
@@ -81,6 +82,7 @@ impl TxBuilder {
             inputs: vec![],
             outputs: vec![],
             script_sigs: vec![],
+            witness: vec![],
             sighashes: vec![]
         }
     }
@@ -103,6 +105,7 @@ impl TxBuilder {
         let new_in: Input = Input::unsigned_input(txid_bytes, vout, 0xFFFFFFFF);
         self.inputs.push(new_in);
         self.script_sigs.push(None);
+        self.witness.push(None);
         self.sighashes.push(None);
 
         Ok(())
@@ -141,16 +144,11 @@ impl TxBuilder {
 
         //Get the unlocking script type of the input
         let script_pub_key: Script = Script::new(Self::get_input_script_pub_key(&self, index)?);
-        let input_script_type: ScriptType = match Script::determine_type(&script_pub_key) {
-            Ok(x) => match x {
-                ScriptType::P2WPKH | ScriptType::P2WSH => {
-                    self.inputs[index].segwit = true;
-                    x
-                },
-                _ => x
-            },
-            Err(_) => return Err(BuilderErr::UnknownScriptType())
-        };
+        let input_script_type: ScriptType = script_pub_key.determine_type();
+        match input_script_type {
+                ScriptType::P2WPKH | ScriptType::P2WSH => self.inputs[index].segwit = true,
+                _ => { }
+        }
         
         //Sign the input and set the script_sig based on the locking script
         match input_script_type {
@@ -171,7 +169,8 @@ impl TxBuilder {
                 }
             },
             ScriptType::P2SH => pipes::p2sh(self, &tx_copy, index, &sighash, &signing_data)?,
-            ScriptType::P2WSH => pipes::p2wsh()?          //P2SH signing but with BIP-143
+            ScriptType::P2WSH => pipes::p2wsh()?,          //P2SH signing but with BIP-143
+            ScriptType::NonStandard => return Err(BuilderErr::UnknownScriptType())
         }
 
         Ok(())
@@ -199,58 +198,65 @@ impl TxBuilder {
         let output_count: usize = self.outputs.len();
         let locktime: u32 = 0x00000000;
 
-        //Loop over each input and its stored scriptSig if it exists
+        //Loop over each input and check if there is a scriptSig or witness for it
         let mut inputs: Vec<Input> = vec![];
         for i in 0..self.inputs.len() {
-            match &self.script_sigs[i] {
-                Some(x) => {
-                    let mut input = self.inputs[i].clone();
-                    input.scriptSig = x.clone();
-                    input.scriptSig_size = input.scriptSig.len();
-
-                    inputs.push(input);
-                },
-                
-                //If input is not signed, return an error
-                None => return Err(BuilderErr::UnsignedInput(i))
-            }
+            if self.inputs[i].segwit { //If the input is segwit
+                match &self.witness[i] {
+                    Some(_) => {
+                        //Remove the scriptSig
+                        let mut input = self.inputs[i].clone();
+                        input.scriptSig = Script::new(vec![]);
+                        input.scriptSig_size = 0x00;
+    
+                        inputs.push(input);
+                    },
+                    None => return Err(BuilderErr::UnsignedInput(i))
+                }
+            } else { //If the input is not segwit
+                match &self.script_sigs[i] {
+                    Some(x) => {
+                        //Put the stored scriptSig into the input
+                        let mut input = self.inputs[i].clone();
+                        input.scriptSig = x.clone();
+                        input.scriptSig_size = input.scriptSig.len();
+    
+                        inputs.push(input);
+                    },
+                    
+                    //If there is no scriptSig, check for a Witness.
+                    None => return Err(BuilderErr::UnsignedInput(i))
+                }
+            }  
         }
 
-        //If any of the inputs in the Tx are marked as SegWit, set the SegWit data
+        //If any of the witnesses are present in the Tx, set the SegWit data
         let mut segwit: bool = false;
         let mut flag: Option<u8> = None;
         let mut marker: Option<u8> = None;
         let mut witness: Option<Vec<Witness>> = None;
-        if self.inputs.iter().any(|x| x.segwit == true) {
+        if self.witness.iter().any(|x| {
+            match x {
+                Some(_) => true,
+                None => false
+            }
+        }) {
+            let mut witnesses: Vec<Witness> = vec![];
             segwit = true;
-            //If the Tx is SegWit,values here are set
             flag = Some(0x00);
             marker = Some(0x01);
-            witness = Some(vec![Witness::empty(); self.inputs.len()]);
 
-            //For each input, if the input is SegWit, remove it's scriptSig and store it in the Witness array
-            for i in 0..self.inputs.len() {
-                if self.inputs[i].segwit {
-                    inputs[i].scriptSig_size = 0x00;
-                    inputs[i].scriptSig = Script::new(vec![]);
-                    
-                    let mut wd: Vec<Witness> = match witness {
-                        Some(x) => x,
-                        None => panic!("WTF")
-                    };
-                    wd[i] = Witness::new(self.script_sigs[i].clone().unwrap(), 2);
-                    
-                    witness = Some(wd);
-                } else {
-                    
-                    let mut wd: Vec<Witness> = match witness {
-                        Some(x) => x,
-                        None => panic!("WTF")
-                    };
-                    wd[i] = Witness::empty();
-                    witness = Some(wd);
-                }
+
+            for i in 0..self.witness.len() {
+                witnesses.push(
+                    match &self.witness[i] {
+                    Some(x) => x.clone(),
+                    None => Witness::empty()
+                    }
+                );
             }
+
+            witness = Some(witnesses);
         }
         
         

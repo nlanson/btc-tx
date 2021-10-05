@@ -21,7 +21,8 @@ pub enum ScriptType {
     P2PKH,
     P2SH,
     P2WPKH,
-    P2WSH
+    P2WSH,
+    NonStandard
 }
 
 
@@ -144,8 +145,8 @@ impl Script {
         Self::new(unlocking_script)
     }
 
-    pub fn determine_type(&self) -> Result<ScriptType, ScriptErr> {
-        let input_script_type: ScriptType = match self.code[0] {
+    pub fn determine_type(&self) -> ScriptType {
+        match self.code[0] {
             0x76 => ScriptType::P2PKH,
             0xA9 => ScriptType::P2SH,
             //Segwit Version 0
@@ -153,13 +154,11 @@ impl Script {
                 match self.code[1] {
                     0x14 => ScriptType::P2WPKH,
                     0x20 => ScriptType::P2WSH,
-                    _ => return Err(ScriptErr::UnknownScript())
+                    _ => ScriptType::NonStandard
                 } 
             },
-            _ => return Err(ScriptErr::UnknownScript())
-        };
-
-        Ok(input_script_type)
+            _ => ScriptType::NonStandard
+        }
     }
 
     /**

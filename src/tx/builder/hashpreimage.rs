@@ -149,6 +149,8 @@ pub fn segwit(
         Err(_) => return Err(BuilderErr::CannotGetInputValue())
     };
 
+    //This scriptCode is specifically for P2WPKH inputs.
+    //For P2WSH, this will be different.
     let mut script_code = script_code.code.clone();
     script_code.remove(0);
     script_code.remove(0);
