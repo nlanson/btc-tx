@@ -2,6 +2,7 @@
     Module that makes writing script easier.
 */
 use btc_keyaddress::key::Key;
+use btc_keyaddress::script::Script as RedeemScript;
 use crate::{
     util::{
         bech32,
@@ -208,4 +209,10 @@ impl Script {
         Ok(Script::new(script))
     }
 
+
+    pub fn p2sh_p2wpkh_redeem_script(key: &PrivKey) -> Self {
+        let code = RedeemScript::p2sh_p2wpkh(&PubKey::from_priv_key(key)).unwrap().script;
+
+        Self::new(code)
+    }
 }

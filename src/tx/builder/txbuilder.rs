@@ -411,4 +411,25 @@ mod tests {
         //Compare the derived and expected TXID
         assert_eq!(tx.get_txid(), expected_txid);
     }
+
+    #[test]
+    fn single_p2sh_nested_p2wpkh_input() {
+        let expected_txid = "bd0f713f118533f77f097e3280eae4b57fca9f9d97ed40d091c520ce989a4886";
+        
+        //Create and sign the transaction
+        let mut txb = TxBuilder::new(Network::Testnet);
+        txb.add_input("3d0b0b9ccc50efa160ac4d69be18b1c4f4b72c4aed55645c0fb7edfe5dc7e7c7", 0).unwrap();
+        txb.add_output("2NChp1fpJkEn5vRjXK6gKPgwbBi3TAVvTKX", 95000).unwrap();
+
+        let key = PrivKey::from_wif("cQTQNYrAbwZN6RDuxL4C9WMH8JBNfVPKVwFJtVqCksgjmHTWdtCR").unwrap();
+        let signing_data = SigningData::new(
+            vec![key.clone()],
+            Some(Script::p2sh_p2wpkh_redeem_script(&key))
+        );
+        txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
+        let tx: Tx = txb.build().unwrap();
+
+        //Compare the derived and expected TXID
+        assert_eq!(tx.get_txid(), expected_txid);
+    }
 }
