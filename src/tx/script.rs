@@ -177,7 +177,7 @@ impl Script {
     /**
         Returns the scriptSig for a P2SH multisig input
     */
-    pub fn p2sh_multisig_unlocking(signatures: &Vec<Signature>, signing_data: &SigningData, sighash: &SigHash) -> Result<Self, ScriptErr> {
+    pub fn p2sh_unlocking(signatures: &Vec<Signature>, signing_data: &SigningData, sighash: &SigHash) -> Result<Self, ScriptErr> {
         let mut redeem_script: Script = match signing_data.script.clone() {
             Some(x) => x,
             None => return Err(ScriptErr::MissingScript())

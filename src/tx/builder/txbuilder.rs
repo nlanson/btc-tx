@@ -38,8 +38,8 @@ pub enum SigHash {
 #[derive(Debug)]
 pub struct TxBuilder {
     pub network: Network,
-    inputs: Vec<Input>,
-    outputs: Vec<Output>,
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<Output>,
     pub script_sigs: Vec<Option<Script>>, //scriptSigs are stored in this attribute
     pub witness: Vec<Option<Witness>>,    //witnesses are stored in this attribute
     pub sighashes: Vec<Option<SigHash>>   //SigHash is stored to detect if new inputs/outputs can be added
@@ -201,33 +201,39 @@ impl TxBuilder {
         //Loop over each input and check if there is a scriptSig or witness for it
         let mut inputs: Vec<Input> = vec![];
         for i in 0..self.inputs.len() {
-            if self.inputs[i].segwit { //If the input is segwit
-                match &self.witness[i] {
-                    Some(_) => {
+            match &self.script_sigs[i] {
+                //Legacy or segwit
+                //It will enter here if the input is legacy or P2SH nested Segwit
+                Some(x) => {
+                    //Put the stored scriptSig into the input
+                    let mut input = self.inputs[i].clone();
+                    input.scriptSig = x.clone();
+                    input.scriptSig_size = input.scriptSig.len();
+
+                    inputs.push(input);
+
+                    //Witness data is created after this loop. 
+                    //However, it could be brought into this loop
+                    //to make the code more efficient.
+                },
+
+                //Unsigned or segwit
+                //It will only enter here is the input is native Segwit
+                None => {
+                    //If input is segwit
+                    if self.inputs[i].segwit {
                         //Remove the scriptSig
                         let mut input = self.inputs[i].clone();
                         input.scriptSig = Script::new(vec![]);
                         input.scriptSig_size = 0x00;
     
                         inputs.push(input);
-                    },
-                    None => return Err(BuilderErr::UnsignedInput(i))
+                    } else {
+                        //If there is no scriptSig and not marked as Segwit
+                        return Err(BuilderErr::UnsignedInput(i))
+                    }
                 }
-            } else { //If the input is not segwit
-                match &self.script_sigs[i] {
-                    Some(x) => {
-                        //Put the stored scriptSig into the input
-                        let mut input = self.inputs[i].clone();
-                        input.scriptSig = x.clone();
-                        input.scriptSig_size = input.scriptSig.len();
-    
-                        inputs.push(input);
-                    },
-                    
-                    //If there is no scriptSig, check for a Witness.
-                    None => return Err(BuilderErr::UnsignedInput(i))
-                }
-            }  
+            }
         }
 
         //If any of the witnesses are present in the Tx, set the SegWit data
@@ -278,5 +284,131 @@ impl TxBuilder {
 
 #[cfg(test)]
 mod tests {
-    
+    use super::*;
+    use crate::{
+        tx::Script
+    };
+    use btc_keyaddress::prelude::*;
+    use btc_keyaddress::key::PrivKey as PrivKey;
+
+    #[test]
+    fn single_legacy_p2pkh_input() {
+        let expected_txid = "d37c3d75e7a70261bf191dfc296272cbb20e0466167d4f6f8fde6c2458f05004";
+        
+        //Create and sign the transaction
+        let mut txb = TxBuilder::new(Network::Testnet);
+        txb.add_input("a8064a6143c6027dddafb356236a475dab3f56fa3dad1dc0c873e54e6527f167", 1).unwrap();
+        txb.add_output("msSJzRfQb2T3hvws3vRhqtK2Ao39cabEa2", 80000).unwrap();
+
+        let key: PrivKey = PrivKey::from_slice(&[25, 185, 89, 6, 72, 28, 43, 234, 167, 160, 163, 78, 240, 86, 146, 133, 49, 98, 255, 253, 45, 121, 146, 10, 233, 252, 142, 232, 193, 73, 255, 150]).unwrap();
+        let signing_data = SigningData::new(vec![key], None);
+        txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
+        let tx: Tx = txb.build().unwrap();
+
+        //Compare the derived and expected TXID
+        assert_eq!(tx.get_txid(), expected_txid);
+    }
+
+    #[test]
+    fn single_segwit_p2wpkh_input() {
+        let expected_txid = "10296b2590ce4397a617cf77071581fc0eb34dc531b1c243565d7508970e57b7";
+        
+        //Create and sign the transaction
+        let mut txb = TxBuilder::new(Network::Testnet);
+        txb.add_input("36e336b364abaf48b46c415903b1d93c7a740d7a3bde1691e30fec3d7a180245", 0).unwrap();
+        txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 60000).unwrap();
+        
+        let key: PrivKey = PrivKey::from_slice(&[131, 187, 80, 16, 233, 20, 231, 76, 171, 218, 189, 168, 220, 150, 47, 40, 73, 149, 85, 236, 159, 205, 198, 160, 182, 32, 149, 30, 95, 184, 54, 186]).unwrap();
+        let signing_data = SigningData::new(vec![key], None);
+        txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
+        let tx: Tx = txb.build().unwrap();
+
+        //Compare the derived and expected TXID
+        assert_eq!(tx.get_txid(), expected_txid);
+    }
+
+    #[test]
+    fn single_segwit_p2wpkh_input_and_2_outputs() {
+        let expected_txid = "d8f1b1529a1f2db2ae09da0e8e5bc562dbdddc7647f8154d1f7d1360e2cde1c6";
+
+        //Create and sign the transaction
+        let mut txb = TxBuilder::new(Network::Testnet);
+        txb.add_input("10296b2590ce4397a617cf77071581fc0eb34dc531b1c243565d7508970e57b7", 0).unwrap();
+        txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 29000).unwrap();
+        txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 29000).unwrap();
+        
+        let key: PrivKey = PrivKey::from_slice(&[131, 187, 80, 16, 233, 20, 231, 76, 171, 218, 189, 168, 220, 150, 47, 40, 73, 149, 85, 236, 159, 205, 198, 160, 182, 32, 149, 30, 95, 184, 54, 186]).unwrap();
+        let signing_data = SigningData::new(vec![key], None);
+        txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
+        let tx: Tx = txb.build().unwrap();
+
+        //Compare the derived and expected TXID
+        assert_eq!(tx.get_txid(), expected_txid);
+    }
+
+    #[test]
+    fn double_segwit_p2wpkh_inputs() {
+        let expected_txid = "552af0fc08762799412d40c339c9c094981e353b161983c3e46b55b2a36dd8f0";
+
+        //Create and sign the transaction
+        let mut txb = TxBuilder::new(Network::Testnet);
+        txb.add_input("d8f1b1529a1f2db2ae09da0e8e5bc562dbdddc7647f8154d1f7d1360e2cde1c6", 0).unwrap();
+        txb.add_input("d8f1b1529a1f2db2ae09da0e8e5bc562dbdddc7647f8154d1f7d1360e2cde1c6", 1).unwrap();
+        txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 50000).unwrap();
+
+        let key: PrivKey = PrivKey::from_slice(&[131, 187, 80, 16, 233, 20, 231, 76, 171, 218, 189, 168, 220, 150, 47, 40, 73, 149, 85, 236, 159, 205, 198, 160, 182, 32, 149, 30, 95, 184, 54, 186]).unwrap();
+        let signing_data = SigningData::new(vec![key], None);
+        txb.sign_input(0, &signing_data, SigHash::SINGLE_ANYONECANPAY).unwrap();
+        txb.sign_input(1, &signing_data, SigHash::ALL).unwrap();
+        let tx: Tx = txb.build().unwrap();
+        
+        //Compare the derived and expected TXID
+        assert_eq!(tx.get_txid(), expected_txid);
+    }
+
+    #[test]
+    fn single_p2sh_1of1_input() {
+        let expected_txid = "fd091c2594549f72c21d9c0541f6df660d47656f4b4a9898521884191a7c378a";
+
+        //Create and sign the transaction
+        let mut txb = TxBuilder::new(Network::Testnet);
+        txb.add_input("34ab5526d94325a2bcd8bf5dc145c4af884ef6c6ca3ccb029a77ebe62d614f9e", 1).unwrap();
+        txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 20000).unwrap();
+
+        let key_1 = PrivKey::from_wif("cU1mPkyNgJ8ceLG5v2zN1VkZcvDCE7VK8KrnHwW82PZb6RCq7zRq").unwrap();
+        let signing_data = SigningData::new(
+            vec![key_1.clone()],
+            Some(Script::p2sh_multisig_locking(1, 1, &vec![key_1]))
+        );
+        txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
+        let tx = txb.build().unwrap();
+
+        //Compare the derived and expected TXID
+        assert_eq!(tx.get_txid(), expected_txid);
+    }
+
+    #[test]
+    fn single_p2sh_2of3_input() {
+        let expected_txid = "9ea7d9fe33b083193098004f81ea0eb20964c244fe98c381043ea74e7b58c302";
+
+        //Create and sign the transaction
+        let mut txb = TxBuilder::new(Network::Testnet);
+        txb.add_input("a0cbeea4127b77724bb960720d0523835f66fced18ac6b315e6dc3d1daf49ce2", 0).unwrap();
+        txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 20000).unwrap();
+
+        let keys = vec![
+            PrivKey::from_wif("cU1mPkyNgJ8ceLG5v2zN1VkZcvDCE7VK8KrnHwW82PZb6RCq7zRq").unwrap(),
+            PrivKey::from_wif("cPTFNJD7hgbZTqNJgW89HABGtRzYo5aLpCQKvmNdtRNGWo49NAky").unwrap(),
+            PrivKey::from_wif("cNUe2L9CNJZoedMU8YNrzRuxFc56dvMjFxzK4mTsSGhXwbidAyog").unwrap(),
+        ];
+        let signing_data = SigningData::new(
+            vec![keys[0].clone(), keys[1].clone()],
+            Some(Script::p2sh_multisig_locking(2, 3, &keys))
+        );
+        txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
+        let tx = txb.build().unwrap();
+
+        //Compare the derived and expected TXID
+        assert_eq!(tx.get_txid(), expected_txid);
+    }
 }

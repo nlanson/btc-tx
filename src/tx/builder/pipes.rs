@@ -8,7 +8,8 @@ use crate::{
         SigHash,
         Tx,
         TxBuilder,
-        Witness
+        Witness,
+        ScriptType
     }
 };
 use super::{ 
@@ -94,34 +95,65 @@ pub fn p2sh(
     sighash: &SigHash,
     signing_data: &SigningData
 ) -> Result<(), BuilderErr> {
-    let mut tx_copy = tx_copy.clone();
+    match &signing_data.script {
+        //If a redeem script is presented
+        Some(x) =>  match x.determine_type() {
+            /* Segwit within P2SH */
+            ScriptType::P2WPKH | ScriptType::P2WSH => {
+                //Mark input as Segwit
+                builder.inputs[index].segwit = true;
+                
+                //Redeem script goes into the scriptSig
+                let mut script_sig: Vec<u8> = vec![x.code.len() as u8];
+                script_sig.append(&mut x.code.clone());
+                builder.script_sigs[index] = Some(Script::new(script_sig));
 
-    //Modify and get the hash preimage of the transaction                 //Create hashpreimage with the redeemscript
-    let hash_preimage = hashpreimage::legacy(&mut tx_copy, sighash, index, &signing_data.script.clone().unwrap())?;
+                //Sign and create witness
+                match x.determine_type() {
+                    ScriptType::P2WPKH => p2wpkh(builder, tx_copy, index, sighash, x, &signing_data.keys[0])?,
+                    ScriptType::P2WSH => p2wsh()?,
+                    _ => panic!("Non standard P2SH segwit detected")
+                }
 
-    //Create a signature for each private key provided. 
-    //If none are provided, it will not do anything.
-    let mut signatures: Vec<Signature> = vec![];
-    let msg = match signature::new_msg(&hash::sha256d(&hash_preimage)) {
-        Ok(x) => x,
-        Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
-    };
-    for i in 0..signing_data.keys.len() {
-        signatures.push(
-            signature::sign(&msg, &signing_data.keys[i].raw())
-        );
+                return Ok(())
+            },
+
+           /* Regular P2SH */
+            _ => { 
+                let mut tx_copy = tx_copy.clone();
+
+                //Modify and get the hash preimage of the transaction                 //Create hashpreimage with the redeemscript
+                let hash_preimage = hashpreimage::legacy(&mut tx_copy, sighash, index, &signing_data.script.clone().unwrap())?;
+
+                //Create a signature for each private key provided. 
+                //If none are provided, it will not do anything.
+                let mut signatures: Vec<Signature> = vec![];
+                let msg = match signature::new_msg(&hash::sha256d(&hash_preimage)) {
+                    Ok(x) => x,
+                    Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
+                };
+                for i in 0..signing_data.keys.len() {
+                    signatures.push(
+                        signature::sign(&msg, &signing_data.keys[i].raw())
+                    );
+                }
+
+                //Construct and store the scriptSig and sigHash
+                let script_sig: Script = match Script::p2sh_unlocking(&signatures, signing_data, sighash) {
+                    Ok(x) => x,
+                    Err(_) => return Err(BuilderErr::RedeemScriptMissing())
+                };
+                builder.script_sigs[index] = Some(script_sig);
+                builder.sighashes[index] = Some(sighash.clone());
+                
+                
+                return Ok(())
+            }
+        },
+
+        //If no redeem script is given
+        _ =>  return Err(BuilderErr::RedeemScriptMissing())
     }
-
-    //Construct and store the scriptSig and sigHash
-    let script_sig: Script = match Script::p2sh_multisig_unlocking(&signatures, signing_data, sighash) {
-        Ok(x) => x,
-        Err(_) => return Err(BuilderErr::RedeemScriptMissing())
-    };
-    builder.script_sigs[index] = Some(script_sig);
-    builder.sighashes[index] = Some(sighash.clone());
-    
-    
-    Ok(())
 }
 
 pub fn p2wsh() -> Result<(), BuilderErr> {

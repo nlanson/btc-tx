@@ -1,13 +1,12 @@
 use crate::{
-    util::bytes::{
-        decode_02x as d02,
-        encode_02x as e02
-    },
+    util::bytes,
     util::serialize::{
         Serialize as SerializeTrait,
         SerializationError
     },
     util::varint::VarInt as VarInt,
+    encode_02x,
+    hash::sha256d
 };
 
 use super::{
@@ -126,5 +125,31 @@ impl Tx {
             locktime,
             segwit: false
         }
+    }
+
+    /**
+        Returns the TXID of self
+    */
+    pub fn get_txid(&self) -> String {
+        //Hash the serialized tx to get the TXID
+        let tx_serialized = self
+                                .force_remove_segwit()
+                                .serialize()
+                                .unwrap();
+
+        encode_02x(&bytes::reverse(&sha256d(tx_serialized).to_vec()))
+    }
+
+    /**
+        Removes the segwit marker from self.
+
+        Used for getting TXID
+    */
+    fn force_remove_segwit(&self) -> Self {
+        //Clone self as mutable and remove segwit marker
+        let mut tx = self.clone();
+        tx.segwit = false; 
+
+        tx
     }
 }
