@@ -57,6 +57,35 @@ impl Witness {
             stack: stack_items
         }
     }
+
+    /**
+       Create witness for P2WSH inputs.
+       Witness is created assuming the redeem script is a multisig script.
+    */
+    pub fn p2wsh(signatures: &Vec<Signature>, witness_script: &Script, sighash: &SigHash) -> Self {
+        let mut stack_items: Vec<Script> = vec![];
+        stack_items.push(Script::new(vec![0x00]));
+        
+        for i in 0..signatures.len() {
+            //Append each signature to the script.
+            //If none are present this loop will not be entered
+            let mut sig: Vec<u8> = vec![];
+            let mut serialized_signature = serialize_sig(&signatures[i]).to_vec();
+
+            sig.append(&mut serialized_signature);
+            sig.push(sighash.clone() as u8);
+
+            stack_items.push(Script::new(sig));
+        }
+        
+        //Append the redeem script
+        stack_items.push(Script::new(witness_script.code.clone()));
+
+
+        Self {
+            stack: stack_items
+        }
+    }
 }
 
 impl Serialize for Witness {

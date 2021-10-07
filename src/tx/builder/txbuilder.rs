@@ -169,7 +169,7 @@ impl TxBuilder {
                 }
             },
             ScriptType::P2SH => pipes::p2sh(self, &tx_copy, index, &sighash, &signing_data)?,
-            ScriptType::P2WSH => pipes::p2wsh()?,          //P2SH signing but with BIP-143
+            ScriptType::P2WSH => pipes::p2wsh(self, &tx_copy, index, &sighash, &signing_data)?,
             ScriptType::NonStandard => return Err(BuilderErr::UnknownScriptType())
         }
 
@@ -378,7 +378,7 @@ mod tests {
         let key_1 = PrivKey::from_wif("cU1mPkyNgJ8ceLG5v2zN1VkZcvDCE7VK8KrnHwW82PZb6RCq7zRq").unwrap();
         let signing_data = SigningData::new(
             vec![key_1.clone()],
-            Some(Script::p2sh_multisig_locking(1, 1, &vec![key_1]))
+            Some(Script::multisig_locking(1, 1, &vec![key_1]))
         );
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
         let tx = txb.build().unwrap();
@@ -403,7 +403,7 @@ mod tests {
         ];
         let signing_data = SigningData::new(
             vec![keys[0].clone(), keys[1].clone()],
-            Some(Script::p2sh_multisig_locking(2, 3, &keys))
+            Some(Script::multisig_locking(2, 3, &keys))
         );
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
         let tx = txb.build().unwrap();

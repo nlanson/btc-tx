@@ -61,7 +61,9 @@ pub fn p2wpkh(
     key: &PrivKey
 ) -> Result<(), BuilderErr> {
     //Get the BIP143 defined hash preimage of the transaction and hash it
-    let hash_preimage = hashpreimage::segwit(&builder.network, tx_copy, sighash, index, script_pub_key)?;
+    //The scriptCode under this circumstance is derived from the scriptPubKey from the input being signed
+    let script_code = hashpreimage::script_code(script_pub_key);
+    let hash_preimage = hashpreimage::segwit(&builder.network, tx_copy, sighash, index, &script_code)?;
     let hash: [u8; 32] = hash::sha256d(hash_preimage);
 
     //Sign the hash preimage with the provided key
@@ -111,7 +113,7 @@ pub fn p2sh(
                 //Sign and create witness
                 match x.determine_type() {
                     ScriptType::P2WPKH => p2wpkh(builder, tx_copy, index, sighash, x, &signing_data.keys[0])?,
-                    ScriptType::P2WSH => p2wsh()?,
+                    ScriptType::P2WSH => p2wsh(builder, tx_copy, index, sighash, signing_data)?,
                     _ => panic!("Non standard P2SH segwit detected")
                 }
 
@@ -139,7 +141,7 @@ pub fn p2sh(
                 }
 
                 //Construct and store the scriptSig and sigHash
-                let script_sig: Script = match Script::p2sh_unlocking(&signatures, signing_data, sighash) {
+                let script_sig: Script = match Script::p2sh_multisig_unlocking(&signatures, signing_data, sighash) {
                     Ok(x) => x,
                     Err(_) => return Err(BuilderErr::RedeemScriptMissing())
                 };
@@ -156,7 +158,42 @@ pub fn p2sh(
     }
 }
 
-pub fn p2wsh() -> Result<(), BuilderErr> {
-    unimplemented!();
-    //P2WSH need to read and follow BIP143 spec
+pub fn p2wsh(
+    builder: &mut TxBuilder,
+    tx_copy: &Tx,
+    index: usize,
+    sighash: &SigHash,
+    signing_data: &SigningData
+) -> Result<(), BuilderErr> {
+    
+    //Get the BIP143 defined hash preimage of the transaction and hash it
+    //The scriptCode under this circumstance is derived from the redeemScript
+    let witness_script = match &signing_data.script {
+        Some(x) => x,
+        None => return Err(BuilderErr::RedeemScriptMissing())
+    };
+    let script_code = hashpreimage::script_code(&witness_script);
+    let hash_preimage = hashpreimage::segwit(&builder.network, tx_copy, sighash, index, &script_code)?;
+    let hash: [u8; 32] = hash::sha256d(hash_preimage.clone());
+
+    //Create a signature for each private key provided. 
+    //If none are provided, it will not do anything.
+    let mut signatures: Vec<Signature> = vec![];
+    let msg = match signature::new_msg(&hash::sha256d(&hash)) {
+        Ok(x) => x,
+        Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
+    };
+    for i in 0..signing_data.keys.len() {
+        signatures.push(
+            signature::sign(&msg, &signing_data.keys[i].raw())
+        );
+    }
+
+    //Create the witness and store it and the sighash
+    let witness: Witness = Witness::p2wsh(&signatures, &witness_script, sighash);
+    builder.witness[index] = Some(witness);
+    builder.sighashes[index] = Some(sighash.clone());
+
+    
+    Ok(())
 }

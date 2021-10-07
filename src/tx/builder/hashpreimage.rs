@@ -1,5 +1,6 @@
 use crate::{
     tx::Script,
+    tx::ScriptType,
     tx::SigHash,
     tx::Tx,
     util::serialize::Serialize,
@@ -149,14 +150,6 @@ pub fn segwit(
         Err(_) => return Err(BuilderErr::CannotGetInputValue())
     };
 
-    //This scriptCode is specifically for P2WPKH inputs.
-    //For P2WSH, this will be different.
-    let mut script_code = script_code.code.clone();
-    script_code.remove(0);
-    script_code.remove(0);
-    script_code.splice(0..0, vec![0x19, 0x76, 0xa9, 0x14]);
-    script_code.append(&mut vec![0x88, 0xac]);
-
     let mut outpoint: Vec<u8> = vec![];
     outpoint.append(&mut bytes::reverse(&tx_copy.inputs[index].txid.to_vec()));
     outpoint.append(&mut tx_copy.inputs[index].vout.to_le_bytes().to_vec());
@@ -166,8 +159,8 @@ pub fn segwit(
     bip143_prehash_serialization.append(&mut n_version.to_vec());                                        //version
     bip143_prehash_serialization.append(&mut hash_prevouts.to_vec());                                    //hashPrevout
     bip143_prehash_serialization.append(&mut hash_sequence.to_vec());                                    //hashSequence
-    bip143_prehash_serialization.append(&mut outpoint);
-    bip143_prehash_serialization.append(&mut script_code);                                               //scriptCode of the input
+    bip143_prehash_serialization.append(&mut outpoint);                                                  //Input outpoint
+    bip143_prehash_serialization.append(&mut script_code.code.clone());                                  //scriptCode of the input
     bip143_prehash_serialization.append(&mut input_value.to_le_bytes().to_vec());                        //Input value
     bip143_prehash_serialization.append(&mut tx_copy.inputs[index].sequence.to_le_bytes().to_vec());     //Input sequence
     bip143_prehash_serialization.append(&mut hash_outputs.to_vec());                                     //hashOutputs
@@ -185,4 +178,32 @@ pub fn segwit(
     
 
     Ok(bip143_prehash_serialization)
+}
+
+/**
+    Creates the scriptCode to be used in hashing segwit Tx's from
+    scriptPubKey or redeemScripts
+*/
+pub fn script_code(script: &Script) -> Script {
+    match script.determine_type() {
+        //The script_code for P2WPKH inputs is:
+        // 0x1976a914{20-byte-pubkey-hash}88ac
+        ScriptType::P2WPKH => {
+            let mut x: Vec<u8> = script.code.clone();
+            x.remove(0); //Remove Witness Version
+            x.remove(0); //Remove push bytes
+            x.splice(0..0, vec![0x19, 0x76, 0xa9, 0x14]); //Push bytes, OP_DUP, OP_HASH160, push bytes
+            x.append(&mut vec![0x88, 0xac]); //OP_EQUALVERIFY, OP_CHECKSIG
+            
+            Script::new(x)
+        },
+
+        //The script_code for P2WSh is:
+        // {redeem script length}{redeem script}
+        _ => {
+            let mut x: Vec<u8> = vec![script.code.len() as u8];
+            x.append(&mut script.code.clone());
+            Script::new(x)
+        }
+    }
 }

@@ -166,19 +166,20 @@ impl Script {
         Wrapper around btc-keyaddress lib to create M-of-N multisig locking scripts
         to present when signing P2SH inputs.
     */
-    pub fn p2sh_multisig_locking(m: u8, n: u8, keys: &Vec<PrivKey>) -> Self {
+    pub fn multisig_locking(m: u8, n: u8, keys: &Vec<PrivKey>) -> Self {
         let script = match btc_keyaddress::prelude::Script::multisig(m, n, keys) {
             Ok(x) => x,
-            Err(_) => panic!("Failed to create p2SH MultiSig redeem script")
+            Err(x) => panic!("{:?}", x)
         };
 
         Self::new(script.script)
     }
 
     /**
-        Returns the scriptSig for a P2SH multisig input
+        Returns the scriptSig for a P2SH input.
+        The scriptSig is created assuming that the redeem script is a multisig script.
     */
-    pub fn p2sh_unlocking(signatures: &Vec<Signature>, signing_data: &SigningData, sighash: &SigHash) -> Result<Self, ScriptErr> {
+    pub fn p2sh_multisig_unlocking(signatures: &Vec<Signature>, signing_data: &SigningData, sighash: &SigHash) -> Result<Self, ScriptErr> {
         let mut redeem_script: Script = match signing_data.script.clone() {
             Some(x) => x,
             None => return Err(ScriptErr::MissingScript())
