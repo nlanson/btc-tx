@@ -81,7 +81,6 @@ impl Witness {
         //Append the redeem script
         stack_items.push(Script::new(witness_script.code.clone()));
 
-
         Self {
             stack: stack_items
         }
@@ -101,9 +100,12 @@ impl Serialize for Witness {
         witness_bytes.append(&mut stack_size_varint);
         for i in 0..self.len() {
             //Length of the stack item
-            witness_bytes.append(
-                &mut VarInt::from_usize(self.stack[i].code.len()).unwrap()
-            );
+            if self.stack[i].code != vec![0x00] { //Only push the length if it is not 1 and the item is not 0x00 (To prevent DUMMY sig must be 0x00 error)
+                witness_bytes.append(
+                    &mut VarInt::from_usize(self.stack[i].code.len()).unwrap()
+                );
+            }
+            
             
             //The stack item itself
             witness_bytes.append(

@@ -172,14 +172,14 @@ pub fn p2wsh(
         Some(x) => x,
         None => return Err(BuilderErr::RedeemScriptMissing())
     };
-    let script_code = hashpreimage::script_code(&witness_script);
+    let script_code = hashpreimage::script_code(witness_script);
     let hash_preimage = hashpreimage::segwit(&builder.network, tx_copy, sighash, index, &script_code)?;
-    let hash: [u8; 32] = hash::sha256d(hash_preimage.clone());
+    let hash: [u8; 32] = hash::sha256d(hash_preimage);
 
     //Create a signature for each private key provided. 
     //If none are provided, it will not do anything.
     let mut signatures: Vec<Signature> = vec![];
-    let msg = match signature::new_msg(&hash::sha256d(&hash)) {
+    let msg = match signature::new_msg(&hash) {
         Ok(x) => x,
         Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
     };
