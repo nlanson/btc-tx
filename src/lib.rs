@@ -10,21 +10,17 @@
 
 
     Todo:
-        - Transaction Builder (See bitcoinjs-lib TransactionBuilder)
-                - Implement P2WSH input signing
-                        > Debug why P2WSH multisig inputs are signed incorrectly
-                             Potential causes: P2WSH witness creation, scriptCode creation
-                
-               - Nested Segwit Support
-                        > P2WSH
+        - Transaction Builder (See bitcoinjs-lib TransactionBuilder)              
+               - General cleanup and refactoring
+               - Unit tests for internal methods
         
 
         - Decoding raw transactions back to Tx Struct
                > This will help with interacting with the Electrum protocol if needed in the future.
-                
+        
+        - Documentation
 
-        - Sig module
-                - Verify txns with sighashes
+        - Prelude module for easy importing of necessary modules
 */
 
 //Modules

@@ -19,6 +19,8 @@ use super::{
 
 /**
     Signing pipe for P2PKH inputs
+
+    Signing data needs one private key to sign the input
 */
 pub fn p2pkh(
     builder: &mut TxBuilder,
@@ -51,6 +53,8 @@ pub fn p2pkh(
 
 /**
     Signing pipe for P2WPKH inputs
+
+    Signing data need one private key to sign the input
 */
 pub fn p2wpkh(
     builder: &mut TxBuilder, 
@@ -100,28 +104,22 @@ pub fn p2sh(
     match &signing_data.script {
         //If a redeem script is presented
         Some(x) =>  match x.determine_type() {
-            /* Segwit within P2SH */
-            ScriptType::P2WPKH | ScriptType::P2WSH => {
-                //Mark input as Segwit
-                builder.inputs[index].segwit = true;
-                
-                //Redeem script goes into the scriptSig
-                let mut script_sig: Vec<u8> = vec![x.code.len() as u8];
-                script_sig.append(&mut x.code.clone());
-                builder.script_sigs[index] = Some(Script::new(script_sig));
-
-                //Sign and create witness
-                match x.determine_type() {
-                    ScriptType::P2WPKH => p2wpkh(builder, tx_copy, index, sighash, x, &signing_data.keys[0])?,
-                    ScriptType::P2WSH => p2wsh(builder, tx_copy, index, sighash, signing_data)?,
-                    _ => panic!("Non standard P2SH segwit detected")
-                }
-
+            /* Segwit P2PKH within P2SH */
+            ScriptType::P2WPKH => {
+                p2sh_p2wpkh(builder, tx_copy, index,sighash, signing_data)?;
                 return Ok(())
             },
 
            /* Regular P2SH */
             _ => { 
+                //Since the SigngingData struct cannot take in more than one script,
+                //if the struct is marked as force segwit, we will treat it as a P2SH nested
+                //P2WSH input.
+                if signing_data.force_segwit {
+                    p2sh_p2wsh(builder, tx_copy, index, sighash, signing_data)?;
+                    return Ok(())
+                }
+                
                 let mut tx_copy = tx_copy.clone();
 
                 //Modify and get the hash preimage of the transaction                 //Create hashpreimage with the redeemscript
@@ -158,6 +156,11 @@ pub fn p2sh(
     }
 }
 
+/**
+    Signing a P2WSH input. 
+
+    Signing Data needs a redeem script
+*/
 pub fn p2wsh(
     builder: &mut TxBuilder,
     tx_copy: &Tx,
@@ -196,4 +199,71 @@ pub fn p2wsh(
 
     
     Ok(())
+}
+
+/**
+    Signing a P2SH nested P2WPKH input.
+
+    Signing data needs one private key to sign the input
+*/
+fn p2sh_p2wpkh(
+    builder: &mut TxBuilder,
+    tx_copy: &Tx,
+    index: usize,
+    sighash: &SigHash,
+    signing_data: &SigningData,
+) -> Result<(), BuilderErr> {
+    let x = match &signing_data.script {
+        Some(s) => s,
+        None => panic!("Missing script")
+    };
+
+    //Mark input as Segwit
+    builder.inputs[index].segwit = true;
+                
+    //Redeem script goes into the scriptSig
+    //The scriptSig here is the Witness program
+    let mut script_sig: Vec<u8> = vec![x.code.len() as u8];
+    script_sig.append(&mut x.code.clone());
+    builder.script_sigs[index] = Some(Script::new(script_sig));
+
+    p2wpkh(builder, tx_copy, index, sighash, &x, &signing_data.keys[0])?;
+
+    return Ok(())
+}
+
+/**
+    Signing a P2SH nested P2WSH input. 
+
+    Signing Data needs to be marked as forcing segwit for this function to be entered.
+    Signing data also needs a redeem script.
+*/
+fn p2sh_p2wsh(
+    builder: &mut TxBuilder,
+    tx_copy: &Tx,
+    index: usize,
+    sighash: &SigHash,
+    signing_data: &SigningData,
+) -> Result<(), BuilderErr> {
+    let x = match &signing_data.script {
+        Some(s) => s,
+        None => panic!("Missing script")
+    };
+    
+    //Mark input as Segwit
+    builder.inputs[index].segwit = true;
+                                    
+    //Redeem script goes into the scriptSig
+    //The scriptSig here is the Witness program of the redeemScript
+    let x = Script::p2sh_p2wsh_redeem_script(&x);
+    let mut script_sig: Vec<u8> = vec![x.code.len() as u8];
+    script_sig.append(&mut x.code.clone());
+    builder.script_sigs[index] = Some(Script::new(script_sig));
+
+
+    //The script passed into here is the regular redeemScript
+
+    p2wsh(builder, tx_copy, index, sighash, &signing_data)?;
+
+    return Ok(())
 }

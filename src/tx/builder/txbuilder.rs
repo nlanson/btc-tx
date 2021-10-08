@@ -48,14 +48,36 @@ pub struct TxBuilder {
 #[derive(Clone)]
 pub struct SigningData {
     pub keys: Vec<PrivKey>,
-    pub script: Option<Script>
+    pub script: Option<Script>,
+    pub force_segwit: bool
 }
 
 impl SigningData {
+    /**
+        Signing data for P2PKH, P2SH, P2WPKH, P2WSH and nested P2WPKH can be created using this method. 
+    */
     pub fn new(keys: Vec<PrivKey>, script: Option<Script>) -> Self {
         Self {
             keys,
-            script
+            script,
+            force_segwit: false
+        }
+    }
+
+    /**
+        Signing data for P2SH nested P2WSH inputs must be created using this method
+        so that when signing, the program signs it as a nested Segwit input instead of 
+        a regular P2SH.
+
+        This is done because there is no way to distinguish a regular P2SH input from a Segwit P2SH
+        input and the redeem script provided to sign each one also has no way to distinguish.
+        Hence the 'force_segwit' flag.
+    */
+    pub fn nested_p2wsh(keys: Vec<PrivKey>, script: Script) -> Self {
+        Self {
+            keys,
+            script: Some(script),
+            force_segwit: true
         }
     }
 }
@@ -454,6 +476,32 @@ mod tests {
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
         let tx: Tx = txb.build().unwrap();
 
+        //Compare the derived and expected TXID
+        assert_eq!(tx.get_txid(), expected_txid);
+    }
+
+    #[test]
+    fn single_p2sh_nested_p2wsh_input() {
+        let expected_txid = "7babf46f8e8eb5b0191fbeb6af7e37c187c81483083f93dca0bfb7624b32a6fe";
+        
+        //Create and sign the transaction
+        let mut txb = TxBuilder::new(Network::Testnet);
+        txb.add_input("26bc5b2c14b3b483511510beb4b834ab0a80f880ced07dadb9fd523f430e6073", 1).unwrap();
+        txb.add_output("2MtHBUeCe27TZMTRXsyYU7EzpawRC4wRx9F", 95000).unwrap();
+
+        let keys = vec![
+            PrivKey::from_wif("cRcbrGcxvGrHvi2SbKNcf4G7LJDKmTDdqjJQRSaf9Wh2Wc7p5hLi").unwrap(),
+            PrivKey::from_wif("cNGd92xEPxuZis3a6Ujo84kXbunzRi44xeLsceBe1pNLff2jCFDZ").unwrap(),
+            PrivKey::from_wif("cVeTYq5D5KQKiHc78CGB6oHYVqseVFc5GK78tyMvmHrLqQf8fik6").unwrap(),
+        ];
+        let multisig_script = Script::multisig_locking(2, 3, &keys);
+        let signing_data = SigningData::nested_p2wsh(
+            vec![keys[0].clone(), keys[1].clone()],
+            multisig_script
+        );
+        txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
+        let tx = txb.build().unwrap();
+    
         //Compare the derived and expected TXID
         assert_eq!(tx.get_txid(), expected_txid);
     }

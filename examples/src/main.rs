@@ -21,4 +21,3 @@ use btc_keyaddress::key::PrivKey as PrivKey;
 fn main() {
    //See unit tests under ../src/tx/builder/txbuilder.rs for examples
 }
-
