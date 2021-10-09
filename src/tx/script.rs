@@ -172,7 +172,9 @@ impl Script {
         to present when signing P2SH inputs.
     */
     pub fn multisig_locking(m: u8, n: u8, keys: &Vec<PrivKey>) -> Self {
-        let script = match btc_keyaddress::prelude::Script::multisig(m, n, keys) {
+        let keys = keys.iter().map(|x| PubKey::from_priv_key(x)).collect::<Vec<PubKey>>();
+        
+        let script = match btc_keyaddress::prelude::Script::multisig(m, n, &keys) {
             Ok(x) => x,
             Err(x) => panic!("{:?}", x)
         };

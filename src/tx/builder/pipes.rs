@@ -152,7 +152,7 @@ pub fn p2sh(
         },
 
         //If no redeem script is given
-        _ =>  return Err(BuilderErr::RedeemScriptMissing())
+        None =>  return Err(BuilderErr::RedeemScriptMissing())
     }
 }
 
