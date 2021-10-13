@@ -171,10 +171,10 @@ impl Script {
         Wrapper around btc-keyaddress lib to create M-of-N multisig locking scripts
         to present when signing P2SH inputs.
     */
-    pub fn multisig_locking(m: u8, n: u8, keys: &Vec<PrivKey>) -> Self {
+    pub fn multisig_locking(m: u8, keys: &Vec<PrivKey>) -> Self {
         let keys = keys.iter().map(|x| PubKey::from_priv_key(x)).collect::<Vec<PubKey>>();
         
-        let script = match btc_keyaddress::prelude::Script::multisig(m, n, &keys) {
+        let script = match btc_keyaddress::prelude::Script::multisig(m, &keys) {
             Ok(x) => x,
             Err(x) => panic!("{:?}", x)
         };

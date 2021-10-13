@@ -400,7 +400,7 @@ mod tests {
         let key_1 = PrivKey::from_wif("cU1mPkyNgJ8ceLG5v2zN1VkZcvDCE7VK8KrnHwW82PZb6RCq7zRq").unwrap();
         let signing_data = SigningData::new(
             vec![key_1.clone()],
-            Some(Script::multisig_locking(1, 1, &vec![key_1]))
+            Some(Script::multisig_locking(1, &vec![key_1]))
         );
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
         let tx = txb.build().unwrap();
@@ -425,7 +425,7 @@ mod tests {
         ];
         let signing_data = SigningData::new(
             vec![keys[0].clone(), keys[1].clone()],
-            Some(Script::multisig_locking(2, 3, &keys))
+            Some(Script::multisig_locking(2, &keys))
         );
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
         let tx = txb.build().unwrap();
@@ -471,7 +471,7 @@ mod tests {
         ];
         let signing_data = SigningData::new(
             vec![keys[0].clone(), keys[1].clone()],
-            Some(Script::multisig_locking(2, 3, &keys))
+            Some(Script::multisig_locking(2, &keys))
         );
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
         let tx: Tx = txb.build().unwrap();
@@ -494,7 +494,7 @@ mod tests {
             PrivKey::from_wif("cNGd92xEPxuZis3a6Ujo84kXbunzRi44xeLsceBe1pNLff2jCFDZ").unwrap(),
             PrivKey::from_wif("cVeTYq5D5KQKiHc78CGB6oHYVqseVFc5GK78tyMvmHrLqQf8fik6").unwrap(),
         ];
-        let multisig_script = Script::multisig_locking(2, 3, &keys);
+        let multisig_script = Script::multisig_locking(2, &keys);
         let signing_data = SigningData::nested_p2wsh(
             vec![keys[0].clone(), keys[1].clone()],
             multisig_script
