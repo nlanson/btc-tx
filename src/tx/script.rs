@@ -7,7 +7,7 @@
     a multisig script.
 */
 use btc_keyaddress::key::Key;
-use btc_keyaddress::script::Script as RedeemScript;
+use btc_keyaddress::script::RedeemScript; //as RedeemScript;
 use crate::{
     util::{
         bech32,
@@ -174,7 +174,7 @@ impl Script {
     pub fn multisig_locking(m: u8, keys: &Vec<PrivKey>) -> Self {
         let keys = keys.iter().map(|x| PubKey::from_priv_key(x)).collect::<Vec<PubKey>>();
         
-        let script = match btc_keyaddress::prelude::Script::multisig(m, &keys) {
+        let script = match btc_keyaddress::prelude::RedeemScript::multisig(m, &keys) {
             Ok(x) => x,
             Err(x) => panic!("{:?}", x)
         };

@@ -409,6 +409,7 @@ mod tests {
         assert_eq!(tx.get_txid(), expected_txid);
     }
 
+    //Test will fail as this test case was created prior to implementing BIP-67 public key sorting in btc-keyaddress crate.
     #[test]
     fn single_p2sh_2of3_input() {
         let expected_txid = "9ea7d9fe33b083193098004f81ea0eb20964c244fe98c381043ea74e7b58c302";
@@ -480,6 +481,7 @@ mod tests {
         assert_eq!(tx.get_txid(), expected_txid);
     }
 
+    //Test will fail as this test case was created prior to implementing BIP-67 public key sorting in btc-keyaddress crate.
     #[test]
     fn single_p2sh_nested_p2wsh_input() {
         let expected_txid = "7babf46f8e8eb5b0191fbeb6af7e37c187c81483083f93dca0bfb7624b32a6fe";
