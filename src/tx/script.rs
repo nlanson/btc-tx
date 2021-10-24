@@ -7,10 +7,11 @@
     a multisig script.
 */
 use btc_keyaddress::key::Key;
-use btc_keyaddress::script::RedeemScript; //as RedeemScript;
+use btc_keyaddress::script::RedeemScript;
+use btc_keyaddress::script::WitnessProgram;
 use crate::{
     util::{
-        bech32,
+        //bech32,
         serialize::serialize_sig,
         varint::VarInt
     },
@@ -116,11 +117,8 @@ impl Script {
         Create a SegWit locking script from a Bech32 address
     */
     pub fn segwit_locking(address: &str) -> Self {
-        let mut unlocking_script: Vec<u8> = vec![];
-        let mut spk: Vec<u8> = bech32::decode(address);
-        unlocking_script.append(&mut spk);
-        
-        Self::new(unlocking_script)
+        let script_pub_key = WitnessProgram::from_address(address).unwrap().to_scriptpubkey().code;
+        Self::new(script_pub_key)
     }
 
     /**

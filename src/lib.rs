@@ -21,6 +21,8 @@
         - Documentation
 
         - Prelude module for easy importing of necessary modules
+
+        - Update API to use self hosted mempool.space api
 */
 
 //Modules
@@ -42,7 +44,9 @@ pub use secp256k1::{
     Message,
     SerializedSignature
 };
-use bitcoin_bech32::{
-    WitnessProgram, u5,
-    constants::Network
-};
+
+//DISABLED
+// use bitcoin_bech32::{
+//     WitnessProgram, u5,
+//     constants::Network
+// };
