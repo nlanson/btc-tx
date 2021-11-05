@@ -424,27 +424,44 @@ mod tests {
         assert_eq!(tx.get_txid(), expected_txid);
     }
 
-    //Test will fail as this test case was created prior to implementing BIP-67 public key sorting in btc-keyaddress crate.
+    //Test has been fixed
     #[test]
     fn single_p2sh_2of3_input() {
-        let expected_txid = "9ea7d9fe33b083193098004f81ea0eb20964c244fe98c381043ea74e7b58c302";
+        let expected_txid = "9600292e2b0cbc94aa7c96397c860183e373bd6c6a5c9eff25957a9414191030";
 
+        //Wallet info
+        let mut b = MultisigHDWalletBuilder::new();
+        let mnemonic_1 = Mnemonic::from_phrase("accuse paper gift hope smart gravity chicken call brother theme food more".to_string(), Language::English, "").unwrap();
+        let mnemonic_2 = Mnemonic::from_phrase("eye tornado future solar matter melt link sponsor job obscure leisure cable".to_string(), Language::English, "").unwrap();
+        let mnemonic_3 = Mnemonic::from_phrase("like ticket stuff acquire human travel spare plastic dad review shoe bachelor".to_string(), Language::English, "").unwrap();
+        let unlocker_1 = Unlocker::from_mnemonic(&mnemonic_1).unwrap();
+        let unlocker_2 = Unlocker::from_mnemonic(&mnemonic_2).unwrap();
+        let unlocker_3 = Unlocker::from_mnemonic(&mnemonic_3).unwrap();
+        b.set_quorum(2);
+        b.set_network(Network::Testnet);
+        b.add_signer_from_mnemonic(&mnemonic_1).unwrap();
+        b.add_signer_from_mnemonic(&mnemonic_2).unwrap();
+        b.add_signer_from_mnemonic(&mnemonic_3).unwrap();
+        b.set_type(MultisigWalletType::P2SH);
+        let wallet = b.build().unwrap();
+
+        
         //Create and sign the transaction
         let mut txb = TxBuilder::new(Network::Testnet);
-        txb.add_input("a0cbeea4127b77724bb960720d0523835f66fced18ac6b315e6dc3d1daf49ce2", 0).unwrap();
-        txb.add_output("tb1qj8rvxxnzkdapv3rueazzyn434duv5q5ep3ze5e", 20000).unwrap();
+        txb.add_input("88846d4505e1e54d8cb6f454deaaa5adc700974ca391f5973d3967670742efbf", 0).unwrap();
+        txb.add_output("2MtW3B2Zddk5waMcoH86QjM4cz4eZFnZwRv", 95000).unwrap();
 
         let keys = vec![
-            PrivKey::from_wif("cU1mPkyNgJ8ceLG5v2zN1VkZcvDCE7VK8KrnHwW82PZb6RCq7zRq").unwrap(),
-            PrivKey::from_wif("cPTFNJD7hgbZTqNJgW89HABGtRzYo5aLpCQKvmNdtRNGWo49NAky").unwrap(),
-            PrivKey::from_wif("cNUe2L9CNJZoedMU8YNrzRuxFc56dvMjFxzK4mTsSGhXwbidAyog").unwrap(),
+            wallet.address_private_key(false, 0, &unlocker_1).unwrap(),
+            wallet.address_private_key(false, 0, &unlocker_2).unwrap(),
+            wallet.address_private_key(false, 0, &unlocker_3).unwrap()
         ];
         let signing_data = SigningData::new(
             vec![keys[0].clone(), keys[1].clone()],
             Some(Script::multisig_locking(2, &keys))
         );
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
-        let tx = txb.build().unwrap();
+        let tx: Tx = txb.build().unwrap();
 
         //Compare the derived and expected TXID
         assert_eq!(tx.get_txid(), expected_txid);
@@ -496,28 +513,44 @@ mod tests {
         assert_eq!(tx.get_txid(), expected_txid);
     }
 
-    //Test will fail as this test case was created prior to implementing BIP-67 public key sorting in btc-keyaddress crate.
+    
     #[test]
-    fn single_p2sh_nested_p2wsh_input() {
-        let expected_txid = "7babf46f8e8eb5b0191fbeb6af7e37c187c81483083f93dca0bfb7624b32a6fe";
+    fn single_p2sh_nested_p2wsh_2of3_input() {
+        let expected_txid = "d7060082b75b030b9a6b46824cab4bf4a65cc08909986d10544d9ae5f717ab18";
+        
+        //Wallet info
+        let mut b = MultisigHDWalletBuilder::new();
+        let mnemonic_1 = Mnemonic::from_phrase("accuse paper gift hope smart gravity chicken call brother theme food more".to_string(), Language::English, "").unwrap();
+        let mnemonic_2 = Mnemonic::from_phrase("eye tornado future solar matter melt link sponsor job obscure leisure cable".to_string(), Language::English, "").unwrap();
+        let mnemonic_3 = Mnemonic::from_phrase("like ticket stuff acquire human travel spare plastic dad review shoe bachelor".to_string(), Language::English, "").unwrap();
+        let unlocker_1 = Unlocker::from_mnemonic(&mnemonic_1).unwrap();
+        let unlocker_2 = Unlocker::from_mnemonic(&mnemonic_2).unwrap();
+        let unlocker_3 = Unlocker::from_mnemonic(&mnemonic_3).unwrap();
+        b.set_quorum(2);
+        b.set_network(Network::Testnet);
+        b.set_type(MultisigWalletType::P2SH_P2WSH);
+        b.add_signer_from_mnemonic(&mnemonic_1).unwrap();
+        b.add_signer_from_mnemonic(&mnemonic_2).unwrap();
+        b.add_signer_from_mnemonic(&mnemonic_3).unwrap();
+        let wallet = b.build().unwrap();
+
         
         //Create and sign the transaction
         let mut txb = TxBuilder::new(Network::Testnet);
-        txb.add_input("26bc5b2c14b3b483511510beb4b834ab0a80f880ced07dadb9fd523f430e6073", 1).unwrap();
-        txb.add_output("2MtHBUeCe27TZMTRXsyYU7EzpawRC4wRx9F", 95000).unwrap();
+        txb.add_input("b2bdfb2bbf7d6e4d058b6f4cb5cbca4666635af695e7e490288592a11f91da52", 0).unwrap();
+        txb.add_output("2NA3BHhzDwU4qMvaeFsjpZZUPp1UzRQrpFS", 7000).unwrap();
 
         let keys = vec![
-            PrivKey::from_wif("cRcbrGcxvGrHvi2SbKNcf4G7LJDKmTDdqjJQRSaf9Wh2Wc7p5hLi").unwrap(),
-            PrivKey::from_wif("cNGd92xEPxuZis3a6Ujo84kXbunzRi44xeLsceBe1pNLff2jCFDZ").unwrap(),
-            PrivKey::from_wif("cVeTYq5D5KQKiHc78CGB6oHYVqseVFc5GK78tyMvmHrLqQf8fik6").unwrap(),
+            wallet.address_private_key(false, 0, &unlocker_1).unwrap(),
+            wallet.address_private_key(false, 0, &unlocker_2).unwrap(),
+            wallet.address_private_key(false, 0, &unlocker_3).unwrap(),
         ];
-        let multisig_script = Script::multisig_locking(2, &keys);
         let signing_data = SigningData::nested_p2wsh(
             vec![keys[0].clone(), keys[1].clone()],
-            multisig_script
+            Script::multisig_locking(2, &keys)
         );
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
-        let tx = txb.build().unwrap();
+        let tx: Tx = txb.build().unwrap();
     
         //Compare the derived and expected TXID
         assert_eq!(tx.get_txid(), expected_txid);

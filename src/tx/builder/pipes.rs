@@ -186,6 +186,10 @@ pub fn p2wsh(
         Ok(x) => x,
         Err(_) => return Err(BuilderErr::FailedToCreateMessageStruct())
     };
+    
+    // let mut signing_data = signing_data.clone();
+    // signing_data.keys.sort_by(|a, b| a.get_pub().cmp(&b.get_pub()));
+
     for i in 0..signing_data.keys.len() {
         signatures.push(
             signature::sign(&msg, &signing_data.keys[i].raw())
