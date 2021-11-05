@@ -161,6 +161,7 @@ impl Script {
                     _ => ScriptType::NonStandard
                 } 
             },
+            0x01 => unimplemented!("Taproot"),
             _ => ScriptType::NonStandard
         }
     }

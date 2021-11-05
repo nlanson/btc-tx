@@ -42,7 +42,8 @@ pub struct TxBuilder {
     pub outputs: Vec<Output>,
     pub script_sigs: Vec<Option<Script>>, //scriptSigs are stored in this attribute
     pub witness: Vec<Option<Witness>>,    //witnesses are stored in this attribute
-    pub sighashes: Vec<Option<SigHash>>   //SigHash is stored to detect if new inputs/outputs can be added
+    pub sighashes: Vec<Option<SigHash>>,  //SigHash is stored to detect if new inputs/outputs can be added
+    pub electrum_url: Option<String>      //Electrum server url
 }
 
 #[derive(Clone)]
@@ -94,7 +95,8 @@ pub enum BuilderErr {
     TxCommitted(),
     CannotGetInputValue(),
     InvalidSigningData(),
-    RedeemScriptMissing()
+    RedeemScriptMissing(),
+    CannotGetElectrum
 }
 
 impl TxBuilder {
@@ -105,8 +107,17 @@ impl TxBuilder {
             outputs: vec![],
             script_sigs: vec![],
             witness: vec![],
-            sighashes: vec![]
+            sighashes: vec![],
+            electrum_url: None
         }
+    }
+
+    /**
+        Set the electrum url to use in the builder
+    */
+    pub fn set_electrum(&mut self, url: String) -> Result<(), BuilderErr> {
+        self.electrum_url = Some(url);
+        Ok(())
     }
 
     /**
@@ -202,9 +213,13 @@ impl TxBuilder {
         Get the scriptPubKey for the input being signed
     */
     fn get_input_script_pub_key(&self, index: usize) -> Result<Vec<u8> ,BuilderErr> {
-        let rpc = api::JsonRPC::new(&self.network);
-        let input_spkhex: Vec<u8> = match rpc.get_input_script_pub_key_hex(&bytes::encode_02x(&self.inputs[index].txid), self.inputs[index].vout) {
-            Ok(x) => bytes::decode_02x(&x),
+        let rpc = match api::Electrum::new(&self.electrum_url, &self.network) {
+            Ok(x) => x,
+            Err(_) => return Err(BuilderErr::CannotGetElectrum)
+        };
+
+        let input_spkhex: Vec<u8> = match rpc.get_input_script_pubkey(&bytes::encode_02x(&self.inputs[index].txid), self.inputs[index].vout as usize) {
+            Ok(x) => x,
             Err(_) => return Err(BuilderErr::CannotGetScriptPubKey(bytes::encode_02x(&self.inputs[index].txid), index))
         };
 

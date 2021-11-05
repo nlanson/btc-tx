@@ -1,124 +1,115 @@
 /*
-    API module to make http requests to the Bitcoin JSON RPC
+    API module to make http requests to the ElectrumX Server.
+    A custom server can be specified or a default one will be used. (blockstream)
 
-    Main net transactions to source data from local Bitcoin Core (Umbrel)
-    Test net transaction to source data from https://testnet.bitcoinexplorer.org/ 
+    Public electrum servers sourced from https://1209k.com/bitcoin-eye/ele.php?chain=btc
 */
-use serde::Deserialize;
+
+use bitcoin_hashes::hex::FromHex;
 use crate::{
-    util:: Network
+    Client, 
+    ElectrumApi,
+    util::bytes::decode_02x,
+    util::Network
 };
 
-
-#[derive(Debug, Deserialize)]
-pub struct TxData {
-    txid: String,
-    hash: String,
-    version: u32,
-    size: u32,
-    vsize: u32,
-    weight: u32,
-    locktime: u32,
-    vin: Vec<InputData>,
-    vout: Vec<OutputData>,
-    hex: String,
-    blockhash: Option<String>,
-    confirmations: u32,
-    time: u64, 
-    blocktime: u64
+pub struct Electrum {
+    client: Client
 }
 
-#[derive(Debug, Deserialize)]
-pub struct InputData {
-    txid: String,
-    vout: u32,
-    scriptSig: ScriptSigData,
-    txinwitness: Option<Vec<String>>,
-    sequence: u32
-}
-#[derive(Debug, Deserialize)]
-pub struct ScriptSigData {
-    asm: String,
-    hex: String
-}
-
-#[derive(Debug, Deserialize)]
-pub struct OutputData {
-    value: f64,
-    n: u32,
-    scriptPubKey: ScriptPubKeyData
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ScriptPubKeyData {
-    asm: String,
-    hex: String,
-    address: Option<String>,
-    r#type: String
-}
-
-pub enum APIErr {
+#[derive(Debug)]
+pub enum ElectrumErr {
+    FailedToConnect,
+    UnknownGenesis(String),
     FailedToGet(),
-    CannotDeserialize(),
     MissingVout(),
 }
 
-pub struct JsonRPC {
-    network: Network,
-    url: String
-}
+/**
+    Electrum client notes:
+        - Need to check if the client returned is for testnet or mainnet. 
+          Hopefully this can be done through a call...
+*/
+impl Electrum {
+    /**
+        Creates a new instance of the Electrum struct
 
-impl JsonRPC {
-    pub fn new(network: &Network) -> Self {
-        let (network, url) = match network {
-            Network::Bitcoin => (Network::Bitcoin, String::from("https://bitcoinexplorer.org/api")),
-            Network::Testnet => (Network::Testnet, String::from("https://testnet.bitcoinexplorer.org/api"))
+        ## Arguments
+        * `url` - The url of the electrum server to connect to.
+                  If None, a public electrum server will be used.
+        * `network` - The network of the electrum server. Only used to cross check on creation
+    */
+    pub fn new(url: &Option<String>, network: &Network) -> Result<Self, ElectrumErr> {
+        let client_constructor = match url {
+            Some(x) => Client::new(&x),
+            None => Client::new("tcp://electrum.blockstream.info:60001")
         };
-        
-        Self {
-            network,
-            url
-        }
-    }
-    
-    #[tokio::main]
-    pub async fn get_tx(&self, txid: &str) -> Result<TxData, APIErr> {
-        let url = format!("{}/tx/{}", self.url, txid);
-        let txd = match reqwest::get(url).await {
-            Ok(x) => match x.json::<TxData>().await {
-                Ok(x) => x,
-                Err(x) => return Err(APIErr::CannotDeserialize())
+
+        match client_constructor {
+            Ok(client) => {
+                let client = Self { client };
+                if network == &client.server_network()? { return Ok(client) }
+                else { return Err(ElectrumErr::FailedToConnect) }
             },
-            Err(_) => return Err(APIErr::FailedToGet())
+            Err(_) => return Err(ElectrumErr::FailedToConnect)
+        }
+    }
+
+    /**
+        Internal method to check the client network and check if the client can connect to the server.
+    */
+    fn server_network(&self) -> Result<Network, ElectrumErr> {
+        let genesis_block_h = match self.client.server_features() {
+            Ok(x) => x.genesis_hash.to_vec(),
+            Err(_) => return Err(ElectrumErr::FailedToConnect)
         };
 
-        Ok(txd)
+        //Mainnet genesis hash
+        if genesis_block_h == decode_02x("000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f") { return Ok(Network::Bitcoin) }
+        //Testnet genesis hash
+        else if genesis_block_h == decode_02x("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943") { return Ok(Network::Testnet)  }
+        
+        //Unknown genesis hash
+        else { return Err(ElectrumErr::FailedToConnect) }
     }
 
-    pub fn get_input_script_pub_key_hex(&self, txid: &str, vout: u32) -> Result<String, APIErr>  {
-        let txd = Self::get_tx(self, txid)?;
-    
-        if vout as usize > txd.vout.len()+1 {
-            return Err(APIErr::MissingVout())
+    /**
+        Gets a tx given a txid string
+    */
+    fn get_tx(&self, txid: &str) -> Result<electrum_client::bitcoin::Transaction, ElectrumErr> {
+        let txid = electrum_client::bitcoin::Txid::from_hash(electrum_client::bitcoin::hashes::sha256d::Hash::from_hex(txid).unwrap());
+        let tx = match self.client.transaction_get(&txid) {
+            Ok(x) => x,
+            Err(_) => return Err(ElectrumErr::FailedToGet())
+        };
+
+        Ok(tx)
+    }
+
+    /**
+        Gets a script pubkey given a txid and output index
+    */
+    pub fn get_input_script_pubkey(&self, txid: &str, vout: usize) -> Result<Vec<u8>, ElectrumErr> {
+        let tx = self.get_tx(txid)?;
+        let vout = vout as usize;
+
+        if vout > tx.output.len() {
+            return Err(ElectrumErr::MissingVout())
         }
-    
-        Ok(txd.vout[vout as usize].scriptPubKey.hex.clone())
-    
+
+        Ok(tx.output[vout].script_pubkey.clone().into_bytes())
     }
 
-    pub fn get_input_value(&self, txid: &str, vout: u32) -> Result<u64, APIErr> {
-        let txd = Self::get_tx(self, txid)?;
-    
-        if vout as usize > txd.vout.len() {
-            return Err(APIErr::MissingVout())
+    /**
+        Gets the output value given a txid and output index
+    */
+    pub fn get_input_value(&self, txid: &str, vout: usize) -> Result<u64, ElectrumErr> {
+        let tx = self.get_tx(txid)?;
+
+        if vout > tx.output.len() {
+            return Err(ElectrumErr::MissingVout())
         }
-    
-        Ok(Self::sats(txd.vout[vout as usize].value.clone()))
-    }
 
-    //Conversion here is not consistent due to floating point arithmatic.
-    //Using round() as a work around but don't expect it to work much better.
-    fn sats(btc: f64) -> u64 {
-        (btc * 100000000.).round() as u64
+        Ok(tx.output[vout].value.clone())
     }
 }

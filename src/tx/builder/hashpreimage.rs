@@ -90,7 +90,8 @@ pub fn segwit(
     tx_copy: &Tx,
     sighash: &SigHash,
     index: usize,
-    script_code: &Script
+    script_code: &Script,
+    electrum_url: &Option<String>
 ) -> Result<Vec<u8>, BuilderErr> {
     let n_version = tx_copy.version.to_le_bytes();
     
@@ -145,10 +146,24 @@ pub fn segwit(
 
     //THERE IS A BUG HERE THAT OCCURS SOMETIMES WHEN FLOATING POINT ARITHMATIC FAILS
     //SEE API MODULE
-    let input_value: u64 = match api::JsonRPC::new(network).get_input_value(&bytes::encode_02x(&tx_copy.inputs[index].txid), tx_copy.inputs[index].vout){
+    // let input_value: u64 = match api::JsonRPC::new(network).get_input_value(&bytes::encode_02x(&tx_copy.inputs[index].txid), tx_copy.inputs[index].vout){
+    //     Ok(x) => x,
+    //     Err(_) => return Err(BuilderErr::CannotGetInputValue())
+    // };
+
+    // let input_value = match network {
+    //     Network::Bitcoin => {
+    //         let electrum = api::Electrum::mainnet(electrum_url);
+    //         electrum.get_input_value(&bytes::encode_02x(&tx_copy.inputs[index].txid), tx_copy.inputs[index].vout as usize)
+    //     }
+    // };
+
+    //Get the input value of the input being signed using Electrum
+    let client = match api::Electrum::new(electrum_url, network) {
         Ok(x) => x,
-        Err(_) => return Err(BuilderErr::CannotGetInputValue())
+        Err(_) => return Err(BuilderErr::CannotGetElectrum)
     };
+    let input_value: u64 = client.get_input_value(&bytes::encode_02x(&tx_copy.inputs[index].txid), tx_copy.inputs[index].vout as usize).unwrap();
 
     let mut outpoint: Vec<u8> = vec![];
     outpoint.append(&mut bytes::reverse(&tx_copy.inputs[index].txid.to_vec()));

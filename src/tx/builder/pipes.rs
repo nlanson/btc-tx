@@ -67,7 +67,7 @@ pub fn p2wpkh(
     //Get the BIP143 defined hash preimage of the transaction and hash it
     //The scriptCode under this circumstance is derived from the scriptPubKey from the input being signed
     let script_code = hashpreimage::script_code(script_pub_key);
-    let hash_preimage = hashpreimage::segwit(&builder.network, tx_copy, sighash, index, &script_code)?;
+    let hash_preimage = hashpreimage::segwit(&builder.network, tx_copy, sighash, index, &script_code, &builder.electrum_url)?;
     let hash: [u8; 32] = hash::sha256d(hash_preimage);
 
     //Sign the hash preimage with the provided key
@@ -176,7 +176,7 @@ pub fn p2wsh(
         None => return Err(BuilderErr::RedeemScriptMissing())
     };
     let script_code = hashpreimage::script_code(witness_script);
-    let hash_preimage = hashpreimage::segwit(&builder.network, tx_copy, sighash, index, &script_code)?;
+    let hash_preimage = hashpreimage::segwit(&builder.network, tx_copy, sighash, index, &script_code, &builder.electrum_url)?;
     let hash: [u8; 32] = hash::sha256d(hash_preimage);
 
     //Create a signature for each private key provided. 

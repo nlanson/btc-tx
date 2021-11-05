@@ -13,6 +13,7 @@
         - Transaction Builder (See bitcoinjs-lib TransactionBuilder)              
                - General cleanup and refactoring
                - Unit tests for internal methods
+               - Signing Taproot inputs (not sure how so won't touch)
         
 
         - Decoding raw transactions back to Tx Struct
@@ -22,7 +23,7 @@
 
         - Prelude module for easy importing of necessary modules
 
-        - Update API to use self hosted mempool.space api
+        - Update API to use self hosted mempool.space API or Electrum Server
 */
 
 //Modules
@@ -44,6 +45,7 @@ pub use secp256k1::{
     Message,
     SerializedSignature
 };
+use electrum_client::{ Client, ElectrumApi };
 
 //DISABLED
 // use bitcoin_bech32::{
