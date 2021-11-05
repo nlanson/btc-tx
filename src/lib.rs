@@ -32,6 +32,7 @@ pub mod tx;
 pub mod util;
 pub mod api;
 pub mod hash;
+pub mod prelude;
 
 //Dependencies
 use btc_keyaddress::prelude::*;
