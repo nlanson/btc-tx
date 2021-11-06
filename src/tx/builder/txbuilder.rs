@@ -115,9 +115,8 @@ impl TxBuilder {
     /**
         Set the electrum url to use in the builder
     */
-    pub fn set_electrum(&mut self, url: String) -> Result<(), BuilderErr> {
-        self.electrum_url = Some(url);
-        Ok(())
+    pub fn set_electrum(&mut self, url: &str) {
+        self.electrum_url = Some(url.to_string());
     }
 
     /**
@@ -322,6 +321,7 @@ impl TxBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prelude::Serialize;
     use crate::{
         tx::Script
     };
@@ -420,6 +420,8 @@ mod tests {
         txb.sign_input(0, &signing_data, SigHash::ALL).unwrap();
         let tx = txb.build().unwrap();
 
+        println!("{}\n", encode_02x(&tx.serialize().unwrap()));
+        println!("{}", tx.get_txid());
         //Compare the derived and expected TXID
         assert_eq!(tx.get_txid(), expected_txid);
     }

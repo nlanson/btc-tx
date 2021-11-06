@@ -150,18 +150,27 @@ impl Script {
     }
 
     pub fn determine_type(&self) -> ScriptType {
+        println!("{:?}", crate::util::bytes::encode_02x(&self.code));
         match self.code[0] {
             0x76 => ScriptType::P2PKH,
             0xA9 => ScriptType::P2SH,
             //Segwit Version 0
             0x00 => {
+                //Check if P2PKH or P2WSH or non standard
                 match self.code[1] {
                     0x14 => ScriptType::P2WPKH,
                     0x20 => ScriptType::P2WSH,
                     _ => ScriptType::NonStandard
                 } 
             },
-            0x01 => unimplemented!("Taproot"),
+            0x51 => { 
+                //Mistaking a multisig script with quorum '1' for taproot so differentiate by checking the second byte
+                match self.code[1] {
+                    0x21 => ScriptType::P2SH,
+                    0x20 => unimplemented!("Taproot"), //Script starting with [0x51, 0x20] is a Taproot output script
+                    _ => ScriptType::P2SH
+                }
+            }, 
             _ => ScriptType::NonStandard
         }
     }

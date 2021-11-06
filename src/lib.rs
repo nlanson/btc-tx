@@ -11,19 +11,12 @@
 
     Todo:
         - Transaction Builder (See bitcoinjs-lib TransactionBuilder)              
-               - General cleanup and refactoring
+               - General cleanup and refactoring (Looking for a BIG cleanup and redesign of the library)
                - Unit tests for internal methods
-               - Signing Taproot inputs (not sure how so won't touch)
-        
-
-        - Decoding raw transactions back to Tx Struct
-               > This will help with interacting with the Electrum protocol if needed in the future.
+               - Signing Taproot inputs (Control blocks, annex and etc...)
+               - TOR proxy connection case fixes and unit tests
         
         - Documentation
-
-        - Prelude module for easy importing of necessary modules
-
-        - Update API to use self hosted mempool.space API or Electrum Server
 */
 
 //Modules
@@ -46,10 +39,9 @@ pub use secp256k1::{
     Message,
     SerializedSignature
 };
-use electrum_client::{ Client, ElectrumApi };
-
-//DISABLED
-// use bitcoin_bech32::{
-//     WitnessProgram, u5,
-//     constants::Network
-// };
+use electrum_client::{
+    Client,
+    ElectrumApi,
+    ConfigBuilder,
+    Socks5Config
+};
