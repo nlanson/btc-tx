@@ -32,9 +32,9 @@ pub struct Electrum {
 pub enum ElectrumErr {
     FailedToConnect,
     UnknownGenesis(String),
-    FailedToGet(),
-    MissingVout(),
-    NetworkMismatch
+    FailedToGet,
+    MissingVout(u32),
+    NetworkMismatch,
 }
 
 /**
@@ -52,39 +52,59 @@ impl Electrum {
         * `network` - The network of the electrum server. Only used to cross check on creation
     */
     pub fn new(url: &Option<String>, network: &Network) -> Result<Self, ElectrumErr> {
-        let client_constructor = match url {
+        //Create the client
+        let client: Result<_, _> = match url {
             //If a url is provided...
-            Some(x) => { 
-                //Check if it is TOR
+            Some(x) => {
                 if x.contains(".onion") { 
-                    let proxy = Socks5Config::new("127.0.0.1:9150");  //Use port 9050 for standalone TOR. 9150 is being used as my machine has Tor browser bundle installed.
-                    let config = ConfigBuilder::new().socks5(Some(proxy)).unwrap().build();
-                    Client::from_config(x, config.clone())
+                    //If the provided url is an onion address...
+                    let possible_proxies = vec![
+                        "127.0.0.1:9150",  //TOR Browser Bundle
+                        "127.0.0.1:9050"   //Standalone TOR
+                    ];
+
+                    //Test each of the possible proxies
+                    let mut i = 0;
+                    loop {
+                        let proxy = Socks5Config::new(possible_proxies[i]);
+                        let config = ConfigBuilder::new().socks5(Some(proxy)).unwrap().build();
+                        let c = Client::from_config(&x, config.clone());
+                        match c {
+                            //If client successfully connects using a proxy, return the client
+                            Ok(_) => break c,
+                            
+                            //If the proxy fails, try the next one or return an error if there are no more.
+                            Err(_) => { 
+                                i+=1; 
+                                if i >= possible_proxies.len() { return Err(ElectrumErr::FailedToConnect); } 
+                                continue;
+                            }
+                        }
+                    }
                 } else {
+                    //If the provided url is not an onion address...
                     Client::new(&x)
                 }
             },
 
             //If no url is provided, use a public electrum server based on the network specified.
             None => match network {
-                Network::Bitcoin => Client::new("tcp://electrum.blockstream.info:50001"),
-                Network::Testnet => Client::new("tcp://electrum.blockstream.info:60001")
+                    Network::Bitcoin => Client::new("tcp://electrum.blockstream.info:50001"),
+                    Network::Testnet => Client::new("tcp://electrum.blockstream.info:60001")
             }
         };
 
-        //Check if the client was created successfully.
-        match client_constructor {
-            Ok(client) => {
-                let client = Self { client };
-
-                //match the network of the client to the network specified.
-                let detected_network = client.server_network()?;
-                if network == &detected_network { return Ok(client) }
-                else { return Err(ElectrumErr::NetworkMismatch) }
-            },
-
+        //Check that the client constructed successfully.
+        let client = match client {
+            Ok(x) => x,
             Err(_) => return Err(ElectrumErr::FailedToConnect)
-        }
+        };
+
+        //Check that the client is connected to the right network.
+        let client = Self { client };
+        let detected_network = client.server_network()?;
+        if network == &detected_network { return Ok(client) }
+        else { return Err(ElectrumErr::NetworkMismatch) }
     }
 
     /**
@@ -112,7 +132,7 @@ impl Electrum {
         let txid = electrum_client::bitcoin::Txid::from_hash(electrum_client::bitcoin::hashes::sha256d::Hash::from_hex(txid).unwrap());
         let tx = match self.client.transaction_get(&txid) {
             Ok(x) => x,
-            Err(_) => return Err(ElectrumErr::FailedToGet())
+            Err(_) => return Err(ElectrumErr::FailedToGet)
         };
 
         Ok(tx)
@@ -126,7 +146,7 @@ impl Electrum {
         let vout = vout as usize;
 
         if vout > tx.output.len() {
-            return Err(ElectrumErr::MissingVout())
+            return Err(ElectrumErr::MissingVout(vout as u32));
         }
 
         Ok(tx.output[vout].script_pubkey.clone().into_bytes())
@@ -139,9 +159,25 @@ impl Electrum {
         let tx = self.get_tx(txid)?;
 
         if vout > tx.output.len() {
-            return Err(ElectrumErr::MissingVout())
+            return Err(ElectrumErr::MissingVout(vout as u32))
         }
 
         Ok(tx.output[vout].value.clone())
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tcp_electrum_mainnet() { Electrum::new(&None, &Network::Bitcoin).unwrap(); }
+
+    #[test]
+    fn tcp_electrum_testnet() { Electrum::new(&None, &Network::Testnet).unwrap(); }
+
+    #[test]
+    //This test requires a local SOCKS proxy to be running on port 9050 or 9150.
+    //If this test fails, assume that either my Bitcoin node is down or your SOCKS proxy is not setup correctly.
+    fn onion_electrum_mainnet() { Electrum::new(&Some("ews5zgbpdsgvhsf6vjoo3xektaj56e7y4jjcd6i2kddlo3vw4xf33tid.onion:50001".to_string()), &Network::Bitcoin).unwrap(); }
 }
