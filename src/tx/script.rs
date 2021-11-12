@@ -230,7 +230,7 @@ impl Script {
         Create the redeem script for a P2SH nested P2WPKH address. 
     */
     pub fn p2sh_p2wpkh_redeem_script(key: &PrivKey) -> Self {
-        let code = RedeemScript::p2sh_p2wpkh(&PubKey::from_priv_key(key)).code;
+        let code = RedeemScript::p2wpkh(&PubKey::from_priv_key(key)).code;
 
         Self::new(code)
     }
@@ -240,7 +240,7 @@ impl Script {
     */
     pub fn p2sh_p2wsh_redeem_script(script: &Script) -> Self {
         let code = RedeemScript::new(script.code.clone());
-        let redeem_script = RedeemScript::p2sh_p2wsh(&code).code;
+        let redeem_script = RedeemScript::p2wsh(&code).code;
 
         Self::new(redeem_script)
     }

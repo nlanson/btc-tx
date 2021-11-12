@@ -14,7 +14,6 @@
                - General cleanup and refactoring (Looking for a BIG cleanup and redesign of the library)
                - Unit tests for internal methods
                - Signing Taproot inputs (Control blocks, annex and etc...)
-               - TOR proxy connection case fixes and unit tests
         
         - Documentation
 */

@@ -6,11 +6,7 @@
 
     Todo:
         - TOR configuration
-            > Determine which port to use for SOCKS interface (9150 with browser or 9050 standalone).
-              This should be determined on a case by case basis where the code will test both ports and 
-              use the available port and fail if both fail.
             > Figure out how to install and run a TOR socks proxy locally wihout the browser.
-            > Unit tests for Testnet and Mainnet electrum requests.
 */
 
 use bitcoin_hashes::hex::FromHex;
